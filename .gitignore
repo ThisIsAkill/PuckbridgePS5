@@ -1,3 +1,2 @@
 *.elf
-!Ghostcontrol.elf
 *.o

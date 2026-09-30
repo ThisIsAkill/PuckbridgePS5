@@ -1,4 +1,4 @@
-# Puckbridge
+# PuckbridgePS5
 
 Use the **Steam Controller (2026)** wirelessly on a jailbroken PS5, with a phone-friendly web portal for remapping every button and per-game profiles.
 
