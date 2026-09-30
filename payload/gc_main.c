@@ -818,7 +818,11 @@ main_loop: ;
         } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
-            game_hooks_feed(&pad, sc2_link);
+            /* Only real input reports (or the neutral frame on disconnect)
+             * reach the game. Battery/status and lizard-mode reports leave
+             * `pad` zeroed, which reads as a stick pushed fully up-left. */
+            if (injected) game_hooks_feed(&pad, sc2_link);
+            else if (!sc2_link) game_hooks_feed(NULL, 0);
             sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
             if (was && !sc2_link) {
                 inject_pad(slot, &pad);                     /* release everything first */
