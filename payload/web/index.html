@@ -232,6 +232,9 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
   <section id="tab-help" hidden>
     <div class="help">
       <div class="card">
+        <h2>Game vibration</h2>
+        <label class="opt" style="padding:8px 0;border:0"><span><b>Send game vibration to the Steam Controller</b><br><small style="color:var(--muted)">Experimental. Hooks the game's vibration call about 10 seconds after it starts. Your DualSense keeps vibrating as normal.</small></span><input type="checkbox" id="gvOn"></label>
+        <p id="gvStatus" style="min-height:2.8em;margin:4px 0 18px">&nbsp;</p>
         <h2>Vibration test</h2>
         <p id="hapNote">Checks the controller's haptics. If nothing happens, try each method and then send the log.</p>
         <div class="btns" style="margin-bottom:10px">
@@ -533,6 +536,18 @@ function paintHap(){const h=status.hap;if(!h){$("#hapDiag").textContent="";retur
    `Queued ${h.q}, sent ${h.sent}, failed ${h.fail}. Last: ${h.q?(h.err?"error "+h.err:"OK")+" via "+via:"none yet"}. OUT endpoint: ${h.out>=0?"0x"+h.out.toString(16).padStart(2,"0"):"not available"}.`}
 $("#logShow").onclick=async()=>{const p=$("#log");if(!p.hidden){p.hidden=true;$("#logShow").textContent="Show log";return}p.textContent=await api("/api/log");p.hidden=false;$("#logShow").textContent="Hide log";p.scrollTop=p.scrollHeight};
 $("#logCopy").onclick=async()=>{const t=await api("/api/log");try{await navigator.clipboard.writeText(t);toast("Log copied")}catch(e){const p=$("#log");p.textContent=t;p.hidden=false;$("#logShow").textContent="Hide log";toast("Select the log text to copy it")}};
+
+/* ── game vibration ── */
+async function paintGameVibe(){
+  let v;try{v=JSON.parse(await api("/api/gamevibe"))}catch(e){return}
+  $("#gvOn").checked=!!v.enabled;
+  const g=games.find(g=>g.id===v.title),name=g?g.name:v.title;
+  $("#gvStatus").textContent=!v.enabled?"Off.":!v.title?"On. Start a game.":
+    v.state===2?`Active in ${name}. The game has sent ${v.calls} vibration updates. Last: low ${v.large}, high ${v.small}.`:
+    v.state===3?`Couldn't hook ${name}: ${v.why}.`:`Waiting for ${name}… ${v.why||""}`;
+}
+$("#gvOn").onchange=async e=>{try{await api("/api/gamevibe?on="+(e.target.checked?1:0),{method:"POST"});toast(e.target.checked?"Game vibration on":"Game vibration off");paintGameVibe()}catch(err){toast(err.message)}};
+setInterval(()=>{if(!$("#tab-help").hidden)paintGameVibe()},1000);
 
 /* ── game bridge check ── */
 async function paintBridge(){

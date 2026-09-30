@@ -6669,3 +6669,183 @@ game_cache_find_table(
     return -1;
 #endif
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * PuckbridgePS5: game vibration capture
+ *
+ * Redirects only the game's scePadSetVibration import slot(s) to a tiny
+ * gateway + stub mapped into the game (same mechanism as the PoorDS4 read
+ * bridge above). The stub records the requested motor values in a shared
+ * page and then calls Sony's original function, so native controllers keep
+ * vibrating exactly as before. If the payload exits, the stub keeps working
+ * (it is self-contained); the game discards the mapping when it exits.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+#define PB_VIBE_MAGIC   0x45424956u   /* "VIBE" */
+#define PB_VIBE_MAX_HOOKS 8u
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    uint64_t original;                 /* libScePad scePadSetVibration */
+    volatile uint32_t seq;             /* bumped on every call */
+    volatile int32_t  handle;
+    volatile uint8_t  large, small;
+    uint16_t reserved0;
+    volatile uint64_t calls;
+    uint32_t hook_count;
+    uint32_t reserved1;
+    uint64_t hook_slots[PB_VIBE_MAX_HOOKS];
+    uint32_t hook_prot[PB_VIBE_MAX_HOOKS];
+} PbVibeArgs;
+
+extern void pb_vibe_stub_end(void);
+
+/* Runs inside the game: position independent, no globals, no calls except
+ * the original through the args page. */
+__attribute__((noinline, used, section(".text.pbvibe")))
+int32_t
+pb_set_vibration_stub(int32_t handle, const uint8_t *param, PbVibeArgs *a)
+{
+    typedef int32_t (*vib_fn)(int32_t, const uint8_t *);
+    if (!a || a->magic != PB_VIBE_MAGIC || !a->original)
+        return (int32_t)0x80920001u;         /* SCE_PAD_ERROR_INVALID_ARG-ish; never expected */
+    if (param) {
+        a->handle = handle;
+        a->large = param[0];
+        a->small = param[1];
+        __atomic_add_fetch(&a->seq, 1u, __ATOMIC_RELEASE);
+    }
+    __atomic_add_fetch(&a->calls, 1u, __ATOMIC_RELAXED);
+    return ((vib_fn)(uintptr_t)a->original)(handle, param);
+}
+
+__attribute__((noinline, used, section(".text.pbvibe")))
+void
+pb_vibe_stub_end(void)
+{
+}
+
+int
+pb_vibe_install(pid_t *out_pid, intptr_t *out_args, char *why, size_t why_n)
+{
+#if !defined(__PROSPERO__)
+    (void)out_pid; (void)out_args; snprintf(why, why_n, "not PS5"); return -1;
+#else
+    pid_t pids[8];
+    *out_pid = -1; *out_args = 0; why[0] = 0;
+    size_t count = find_pids("eboot.bin", pids, 8);
+    if (count != 1) { snprintf(why, why_n, count ? "several game processes" : "no game process"); return -2; }
+    pid_t target = pids[0];
+    *out_pid = target;
+
+    uint32_t libpad = 0;
+    if (get_lib_quiet(target, "libScePad", &libpad) != 0) { snprintf(why, why_n, "libScePad not loaded yet"); return -4; }
+    intptr_t base = kernel_dynlib_mapbase_addr(target, libpad);
+    intptr_t originals[GB_KINDS];
+    static const char *const nm[GB_KINDS] = {
+        "scePadReadState", "scePadReadStateExt", "scePadRead", "scePadReadExt",
+        "scePadGetDataInternal", "scePadGetControllerInformation",
+        "scePadGetExtControllerInformation", "scePadSetVibration", "scePadSetTriggerEffect"};
+    for (unsigned k = 0; k < GB_KINDS; k++) originals[k] = resolve_sym(target, libpad, nm[k]);
+    if (originals[7] <= 0) { snprintf(why, why_n, "scePadSetVibration not exported"); return -5; }
+    if (!poords4_kekcall_available()) { snprintf(why, why_n, "kstuff remote calls unavailable"); return -6; }
+
+    GameBridgeImportHook hooks[POORDS4_GAME_BRIDGE_MAX_IMPORT_HOOKS];
+    uint32_t hook_count = 0;
+    memset(hooks, 0, sizeof(hooks));
+    g_gb_kind_limit = GB_KINDS;
+    int scan = game_bridge_collect_import_hooks(target, base, originals, hooks, &hook_count, -1, 0, 0);
+    g_gb_kind_limit = 7u;
+    if (scan != 0) { snprintf(why, why_n, "import scan failed"); return -4; }
+
+    GameBridgeImportHook vib[PB_VIBE_MAX_HOOKS];
+    uint32_t nv = 0;
+    for (uint32_t i = 0; i < hook_count && nv < PB_VIBE_MAX_HOOKS; i++)
+        if (hooks[i].kind == 7u) vib[nv++] = hooks[i];
+    if (nv == 0) { snprintf(why, why_n, "game doesn't import scePadSetVibration"); return -7; }
+
+    uintptr_t sb = (uintptr_t)pb_set_vibration_stub, se = (uintptr_t)pb_vibe_stub_end;
+    if (se <= sb || se - sb > 2048) { snprintf(why, why_n, "stub layout"); return -8; }
+    size_t stub_size = se - sb;
+    size_t gw_off = (stub_size + 15u) & ~(size_t)15u;
+    size_t code_map = (gw_off + 16u + POORDS4_TARGET_PAGE_SIZE - 1u) & ~(size_t)(POORDS4_TARGET_PAGE_SIZE - 1u);
+    size_t args_map = (sizeof(PbVibeArgs) + POORDS4_TARGET_PAGE_SIZE - 1u) & ~(size_t)(POORDS4_TARGET_PAGE_SIZE - 1u);
+    intptr_t map = 0;
+    if (poords4_remote_map(target, code_map + args_map, &map) != 0) { snprintf(why, why_n, "map failed"); return -9; }
+    intptr_t code = map, args_addr = map + (intptr_t)code_map, gw = code + (intptr_t)gw_off;
+
+    uint8_t gwb[16];
+    if (game_bridge_process_write(target, code, (const void *)sb, stub_size) != 0 ||
+        game_bridge_make_gateway(gwb, gw, args_addr, code, 0 /* args in rdx */) != 0 ||
+        game_bridge_process_write(target, gw, gwb, sizeof(gwb)) != 0) {
+        snprintf(why, why_n, "code write failed"); return -10;
+    }
+    uint64_t prot_args[6] = { (uint64_t)code, (uint64_t)code_map, PROT_READ | PROT_EXEC, 0, 0, 0 };
+    if (poords4_remote_syscall(target, SYS_mprotect, prot_args) != 0) { snprintf(why, why_n, "mprotect failed"); return -11; }
+
+    PbVibeArgs a; memset(&a, 0, sizeof(a));
+    a.magic = PB_VIBE_MAGIC; a.version = 1; a.original = (uint64_t)originals[7];
+    a.hook_count = nv;
+    for (uint32_t i = 0; i < nv; i++) { a.hook_slots[i] = (uint64_t)vib[i].slot; a.hook_prot[i] = vib[i].protection; }
+    if (game_bridge_process_write(target, args_addr, &a, sizeof(a)) != 0) { snprintf(why, why_n, "args write failed"); return -12; }
+
+    uint32_t patched = 0;
+    for (uint32_t i = 0; i < nv; i++) {
+        uint64_t cur = 0; int64_t st[9];
+        if (game_bridge_process_read(target, vib[i].slot, &cur, sizeof(cur)) != 0 ||
+            cur != (uint64_t)vib[i].original) { snprintf(why, why_n, "import slot changed"); goto rollback; }
+        intptr_t g = gw;
+        if (poords4_remote_cow_write(target, vib[i].slot, &g, sizeof(g), (int)vib[i].protection, st) != 0) {
+            snprintf(why, why_n, "import slot write failed"); goto rollback;
+        }
+        patched++;
+    }
+    *out_args = args_addr;
+    snprintf(why, why_n, "hooked %u import slot(s)", nv);
+    return 1;
+
+rollback:
+    while (patched > 0) {
+        uint32_t i = --patched; int64_t st[9];
+        if (poords4_remote_cow_write(target, vib[i].slot, &vib[i].original, sizeof(vib[i].original),
+                                     (int)vib[i].protection, st) != 0)
+            (void)game_bridge_process_write(target, vib[i].slot, &vib[i].original, sizeof(vib[i].original));
+    }
+    return -13;
+#endif
+}
+
+int
+pb_vibe_read(pid_t pid, intptr_t args_addr, uint32_t *seq, uint8_t *large, uint8_t *small,
+             int32_t *handle, uint64_t *calls)
+{
+#if !defined(__PROSPERO__)
+    (void)pid; (void)args_addr; (void)seq; (void)large; (void)small; (void)handle; (void)calls; return -1;
+#else
+    PbVibeArgs a;
+    if (game_bridge_process_read(pid, args_addr, &a, sizeof(a)) != 0 || a.magic != PB_VIBE_MAGIC) return -1;
+    *seq = a.seq; *large = a.large; *small = a.small; *handle = a.handle; *calls = a.calls;
+    return 0;
+#endif
+}
+
+/* Put the original function back in every hooked slot (before rest mode or
+ * when the feature is switched off). Leaves the mapping; the game frees it. */
+int
+pb_vibe_remove(pid_t pid, intptr_t args_addr)
+{
+#if !defined(__PROSPERO__)
+    (void)pid; (void)args_addr; return -1;
+#else
+    PbVibeArgs a;
+    if (game_bridge_process_read(pid, args_addr, &a, sizeof(a)) != 0 || a.magic != PB_VIBE_MAGIC) return -1;
+    int bad = 0;
+    for (uint32_t i = 0; i < a.hook_count && i < PB_VIBE_MAX_HOOKS; i++) {
+        int64_t st[9]; uint64_t orig = a.original;
+        if (poords4_remote_cow_write(pid, (intptr_t)a.hook_slots[i], &orig, sizeof(orig), (int)a.hook_prot[i], st) != 0)
+            bad++;
+    }
+    return bad ? -2 : 0;
+#endif
+}

@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdint.h>
 #include <pthread.h>
 #include <sys/ioctl.h>
 
@@ -63,6 +64,14 @@ static void make_rumble(uint8_t *b, uint16_t l, uint16_t r) {
     /* b[1] type 0, b[2..3] intensity 0 — as hid-steam sends it */
     put16(b + 4, l); b[6] = 2;
     put16(b + 7, r); b[9] = 0;
+}
+
+void sc2_haptic_rumble_set(uint16_t left, uint16_t right) {
+    pthread_mutex_lock(&q_lock);
+    r_left = left; r_right = right;
+    if (left || right) { r_until = INT64_MAX; r_active = 1; r_next = 0; }
+    else               { r_until = 0; }                 /* service sends the stop */
+    pthread_mutex_unlock(&q_lock);
 }
 
 void sc2_haptic_rumble_for(uint16_t left, uint16_t right, int ms) {

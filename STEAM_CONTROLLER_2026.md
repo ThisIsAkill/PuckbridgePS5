@@ -42,6 +42,8 @@ Game vibration, and input that doesn't need a virtual controller, both depend on
 When a game starts you'll see which profile attached, or that it's using Default.
 
 ## Vibration
+**Game vibration (experimental):** turn it on in *Vibration & help*. About 10 seconds after a game starts, Puckbridge redirects the game's `scePadSetVibration` import to a 64-byte stub that records the motor levels and then calls Sony's original function, so a DualSense still vibrates normally. The levels are forwarded to the Steam Controller: low-frequency to the left, high-frequency to the right. Switching it off restores the game's import. Adaptive trigger effects aren't forwarded yet.
+
 The portal's *Vibration & help* tab tests the controller's haptics, with three send methods. Game rumble isn't passed through yet.
 
 ## Known limits

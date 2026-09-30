@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <stddef.h>
 
 #define POORDS4_MAX_USER_CANDIDATES 6u
 
@@ -201,3 +202,9 @@ int wireless_ds4_game_bridge_remove(pid_t game_pid,
  * ptrace, or unmapping memory that an in-flight pad call may still use. */
 int wireless_ds4_game_bridge_quiesce(pid_t game_pid,
                                     intptr_t args_address);
+
+/* PuckbridgePS5: game vibration capture (see end of wireless_ds4.c) */
+int pb_vibe_install(pid_t *out_pid, intptr_t *out_args, char *why, size_t why_n);
+int pb_vibe_read(pid_t pid, intptr_t args_addr, uint32_t *seq, uint8_t *large, uint8_t *small,
+                 int32_t *handle, uint64_t *calls);
+int pb_vibe_remove(pid_t pid, intptr_t args_addr);

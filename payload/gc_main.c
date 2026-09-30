@@ -51,6 +51,7 @@
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
 #include "bridge_probe.h"
+#include "game_vibe.h"
 
 /* ── Logging ──────────────────────────────────────────────────────────── */
 #define LOG_DIR  "/data/ghostpad"
@@ -647,6 +648,7 @@ static void *usb_hid_thread(void *arg) {
             for (int j = 0; j < sc2_map.n && sc2_n_out < SC2_HAP_MAX_OUT; j++) {
                 uint8_t o = sc2_map.it[j].out_ep;
                 if (!o || o == own_out) continue;
+                if (is_puck && (sc2_map.it[j].iface < 2 || sc2_map.it[j].iface > 5)) continue;  /* skip pogo pin iface */
                 memset(&fs_open,0,sizeof(fs_open));
                 fs_open.ep_index=(uint8_t)(2 + sc2_n_out); fs_open.ep_no=o;
                 fs_open.max_bufsize=64; fs_open.max_frames=1;
@@ -1092,6 +1094,7 @@ int main(void) {
     sc2_notify_fn = notify_str;
     sc2_select_start();
     bridge_probe_start(g_inject_uid);
+    game_vibe_start();
     webui_start();
     notify("Puckbridge: remap portal on port %d", WEBUI_PORT);
 
