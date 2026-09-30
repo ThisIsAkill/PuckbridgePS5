@@ -237,17 +237,52 @@ static void inject_pad(int slot, const ScePadData *pad) {
  * that has been seen to vary, so we no longer hardcode which bus a
  * controller shows up on). */
 static int scan_ugen_devices(char paths[][32], int max) {
-    int n = 0;
+    static int last_n = -1, last_err = -1;
+    int n = 0, err = 0;
     DIR *d = opendir("/dev");
-    if (!d) return 0;
-    struct dirent *e;
-    while (n < max && (e = readdir(d)) != NULL) {
-        if (strncmp(e->d_name, "ugen", 4) != 0) continue;
-        snprintf(paths[n], 32, "/dev/%s", e->d_name);
-        n++;
+    if (d) {
+        struct dirent *e;
+        while (n < max && (e = readdir(d)) != NULL) {
+            if (strncmp(e->d_name, "ugen", 4) != 0) continue;
+            snprintf(paths[n], 32, "/dev/%s", e->d_name);
+            n++;
+        }
+        closedir(d);
+    } else {
+        err = errno;
     }
-    closedir(d);
+
+    if (n != last_n || err != last_err) {          /* log only on change */
+        if (!d) gp_log("scan: opendir(/dev) failed errno=%d\n", err);
+        else {
+            gp_log("scan: %d ugen node(s) in /dev\n", n);
+            for (int i = 0; i < n; i++) gp_log("scan:   %s\n", paths[i]);
+        }
+        last_n = n; last_err = err;
+    }
+
+    /* Fallback: /dev not listable (or lists nothing) — try paths directly.
+     * open() on a missing node just fails with ENOENT, which probe ignores. */
+    if (n == 0) {
+        for (int bus = 0; bus <= 3 && n < max; bus++)
+            for (int dev = 1; dev <= 12 && n < max; dev++)
+                snprintf(paths[n++], 32, "/dev/ugen%d.%d", bus, dev);
+        if (last_n == 0 && err == last_err) { /* already logged */ }
+    }
     return n;
+}
+
+/* Log a per-path failure once (so a 2s rescan doesn't spam the log). */
+static int ugen_err_logged(const char *path, int code) {
+    static char seen[MAX_UGEN_DEVS][32];
+    static int  codes[MAX_UGEN_DEVS];
+    static int  n_seen = 0;
+    for (int i = 0; i < n_seen; i++)
+        if (!strcmp(seen[i], path)) { if (codes[i] == code) return 1; codes[i] = code; return 0; }
+    if (n_seen < MAX_UGEN_DEVS) {
+        strncpy(seen[n_seen], path, 31); seen[n_seen][31] = 0; codes[n_seen] = code; n_seen++;
+    }
+    return 0;
 }
 
 /* Log a given device's VID:PID/product once, not on every 2s scan pass. */
@@ -269,10 +304,17 @@ static int ugen_already_logged(const char *path) {
  * one of the PS5's own internal USB devices. */
 static int probe_one_path(const char *path, uint16_t *out_vid, uint16_t *out_pid) {
     int fd = open(path, O_RDWR|O_NONBLOCK);
-    if (fd < 0) return 0;
+    if (fd < 0) {
+        int e = errno;
+        if (e != ENOENT && !ugen_err_logged(path, e))
+            gp_log("probe: %s open failed errno=%d\n", path, e);
+        return 0;
+    }
 
     struct usb_device_info di; memset(&di,0,sizeof(di));
     int have_di = (ioctl(fd,USB_GET_DEVICEINFO,&di) == 0);
+    if (!have_di && !ugen_err_logged(path, 1000 + errno))
+        gp_log("probe: %s GET_DEVICEINFO failed errno=%d\n", path, errno);
 
     if (have_di && !ugen_already_logged(path)) {
         gp_log("probe: %s VID=%04x PID=%04x product=\"%s\"\n",
