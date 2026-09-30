@@ -21,6 +21,7 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -229,21 +230,69 @@ static void inject_pad(int slot, const ScePadData *pad) {
 #define VID_XBOX    0x045eu
 #define PID_XBOX    0x02eau
 
-static const char *UGEN_PATHS[] = {
-    "/dev/ugen2.2","/dev/ugen2.3","/dev/ugen2.4","/dev/ugen2.5",
-    "/dev/ugen2.6","/dev/ugen2.7","/dev/ugen2.8","/dev/ugen2.9",
-    "/dev/ugen1.2","/dev/ugen0.2","/dev/ugen0.3",
-};
-#define N_UGEN_PATHS ((int)(sizeof(UGEN_PATHS)/sizeof(UGEN_PATHS[0])))
+#define MAX_UGEN_DEVS 64
 
-/* Probe one ugen2.x path to identify controller type.
+/* Scan /dev for every ugen* entry (all buses — the PS5's internal USB
+ * devices live on ugen0.x / ugen1.x, external controllers on ugen2.x but
+ * that has been seen to vary, so we no longer hardcode which bus a
+ * controller shows up on). */
+static int scan_ugen_devices(char paths[][32], int max) {
+    int n = 0;
+    DIR *d = opendir("/dev");
+    if (!d) return 0;
+    struct dirent *e;
+    while (n < max && (e = readdir(d)) != NULL) {
+        if (strncmp(e->d_name, "ugen", 4) != 0) continue;
+        snprintf(paths[n], 32, "/dev/%s", e->d_name);
+        n++;
+    }
+    closedir(d);
+    return n;
+}
+
+/* Log a given device's VID:PID/product once, not on every 2s scan pass. */
+static int ugen_already_logged(const char *path) {
+    static char seen[MAX_UGEN_DEVS][32];
+    static int  n_seen = 0;
+    for (int i = 0; i < n_seen; i++) if (!strcmp(seen[i], path)) return 1;
+    if (n_seen < MAX_UGEN_DEVS) { strncpy(seen[n_seen], path, 31); seen[n_seen][31] = 0; n_seen++; }
+    return 0;
+}
+
+/* Probe one /dev/ugen* path to identify controller type.
  * Returns 1 with vid/pid set, 0 if not a known controller.
- * Skips non-ugen2 paths (not on external USB bus). */
+ *
+ * USB_GET_DEVICEINFO is read right after open(), before USB_FS_INIT, so we
+ * can identify (and log) a Valve device on ANY bus without needing the
+ * endpoint-init dance. The endpoint-guessing fallback (Nintendo/Xbox) stays
+ * restricted to ugen2.* — the external bus — so it can never misidentify
+ * one of the PS5's own internal USB devices. */
 static int probe_one_path(const char *path, uint16_t *out_vid, uint16_t *out_pid) {
-    if (strncmp(path, "/dev/ugen2.", 11) != 0) return 0;
-
     int fd = open(path, O_RDWR|O_NONBLOCK);
     if (fd < 0) return 0;
+
+    struct usb_device_info di; memset(&di,0,sizeof(di));
+    int have_di = (ioctl(fd,USB_GET_DEVICEINFO,&di) == 0);
+
+    if (have_di && !ugen_already_logged(path)) {
+        gp_log("probe: %s VID=%04x PID=%04x product=\"%s\"\n",
+               path, di.udi_vendorNo, di.udi_productNo, di.udi_product);
+    }
+
+    /* Exact VID:PID match first, any bus — endpoint heuristics below would
+     * misread the Steam Controller's mouse endpoint (0x82) as an Xbox pad. */
+    if (have_di && di.udi_vendorNo==VID_STEAM &&
+        (di.udi_productNo==PID_STEAM_WIRED || di.udi_productNo==PID_SC2_PUCK ||
+         di.udi_productNo==PID_SC2_WIRED)) {
+        gp_log("probe: %s VID=%04x PID=%04x → Steam Controller\n",
+               path,di.udi_vendorNo,di.udi_productNo);
+        *out_vid=VID_STEAM; *out_pid=di.udi_productNo;
+        close(fd);
+        return 1;
+    }
+
+    /* Everything below only ever touches the external bus. */
+    if (strncmp(path, "/dev/ugen2.", 11) != 0) { close(fd); return 0; }
 
     struct usb_fs_endpoint ep;
     struct usb_fs_init ini;
@@ -251,21 +300,6 @@ static int probe_one_path(const char *path, uint16_t *out_vid, uint16_t *out_pid
     memset(&ep,0,sizeof(ep)); memset(&ini,0,sizeof(ini));
     ini.pEndpoints=&ep; ini.ep_index_max=1;
     if (ioctl(fd,USB_FS_INIT,&ini)!=0) { close(fd); return 0; }
-
-    /* Exact VID:PID match first — endpoint heuristics below would
-     * misread the Steam Controller's mouse endpoint (0x82) as an Xbox pad. */
-    { struct usb_device_info di; memset(&di,0,sizeof(di));
-      if (ioctl(fd,USB_GET_DEVICEINFO,&di)==0 &&
-          di.udi_vendorNo==VID_STEAM &&
-          (di.udi_productNo==PID_STEAM_WIRED || di.udi_productNo==PID_SC2_PUCK ||
-           di.udi_productNo==PID_SC2_WIRED)) {
-          gp_log("probe: %s VID=%04x PID=%04x → Steam Controller\n",
-                 path,di.udi_vendorNo,di.udi_productNo);
-          *out_vid=VID_STEAM; *out_pid=di.udi_productNo;
-          memset(&u,0,sizeof(u)); ioctl(fd,USB_FS_UNINIT,&u);
-          close(fd);
-          return 1;
-      } }
 
     int ii=0; ioctl(fd,USB_IFACE_DRIVER_DETACH,&ii);
     ii=1;     ioctl(fd,USB_IFACE_DRIVER_DETACH,&ii);
@@ -676,11 +710,11 @@ static void *controller_manager_thread(void *arg) {
     gp_log("Manager thread started (MAX_SLOTS=%d)\n", MAX_SLOTS);
 
     while (1) {
-        for (int i = 0; i < N_UGEN_PATHS; i++) {
-            const char *path = UGEN_PATHS[i];
+        static char devs[MAX_UGEN_DEVS][32];
+        int n_devs = scan_ugen_devices(devs, MAX_UGEN_DEVS);
 
-            /* Skip non-external-bus paths */
-            if (strncmp(path, "/dev/ugen2.", 11) != 0) continue;
+        for (int i = 0; i < n_devs; i++) {
+            const char *path = devs[i];
 
             /* Serialize assignment: if a controller is still awaiting the user's
              * button press to confirm its dialog, do not start another one. */
