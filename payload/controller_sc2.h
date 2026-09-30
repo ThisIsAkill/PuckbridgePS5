@@ -34,6 +34,15 @@
  * Returns count found (0 on descriptor read failure). */
 int  sc2_list_in_eps(int fd, int is_puck, uint8_t *out, int max);
 
+/* Full interrupt-endpoint map (every interface), read from the config
+ * descriptor and logged once. Used to pair a slot's IN with its OUT. */
+typedef struct {
+    int n;
+    struct { uint8_t iface, in_ep, out_ep, iclass; } it[10];
+} sc2_ep_map_t;
+int  sc2_ep_map(int fd, sc2_ep_map_t *m);          /* returns interface count */
+int  sc2_iface_of_in(const sc2_ep_map_t *m, uint8_t in_ep);
+
 /* With FS already initialised (ep_index_max >= n), open all candidate
  * endpoints, wait up to timeout_ms for a 0x42/0x45 report and return the
  * endpoint address that produced it (0 = none yet, <0 = device gone).

@@ -161,7 +161,7 @@ static void handle(int fd) {
     if (is_post && !strncmp(path, "/api/haptic", 11)) {
         LOG("haptics: test requested %s (available=%d)\n", path, sc2_haptic_available);
         if (!sc2_haptic_available) { REPLY_TXT(fd, 400, "Steam Controller isn't connected to the payload"); return; }
-        { const char *m = strstr(path, "via="); if (m && m[4] >= '0' && m[4] <= '3') sc2_haptic_method = m[4] - '0'; }
+        { const char *m = strstr(path, "via="); if (m && m[4] >= '0' && m[4] <= '4') sc2_haptic_method = m[4] - '0'; }
         if      (strstr(path, "kind=left"))   sc2_haptic_pulse(SC2_PAD_LEFT,  0x1F4, 0x1F4, 200);
         else if (strstr(path, "kind=right"))  sc2_haptic_pulse(SC2_PAD_RIGHT, 0x1F4, 0x1F4, 200);
         else if (strstr(path, "kind=rumble")) sc2_haptic_rumble_for(0x9000, 0x6000, 700);

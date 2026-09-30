@@ -6,6 +6,7 @@
 
 #include "sc2_haptics.h"
 #include "usb_helpers.h"
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -84,11 +85,41 @@ static int ctrl_report(int fd, int iface, int type, const uint8_t *b, uint8_t n)
     return ioctl(fd, USB_DO_REQUEST, &req) == 0 ? 0 : -errno;
 }
 
+/* Interrupt OUT on any opened FS endpoint index */
+static int send_out_idx(int fd, struct usb_fs_endpoint *eps, int idx, const uint8_t *data, uint32_t len) {
+    void *bufs[1] = { (void *)data };
+    uint32_t lens[1] = { len };
+    struct usb_fs_endpoint *ep = &eps[idx];
+    ep->ppBuffer = bufs; ep->pLength = lens; ep->nFrames = 1;
+    ep->timeout = 150; ep->flags = 0; ep->aFrames = 0; ep->status = 0;
+    struct usb_fs_start st; memset(&st, 0, sizeof(st)); st.ep_index = (uint8_t)idx;
+    if (ioctl(fd, USB_FS_START, &st) != 0) return -errno;
+    for (int w = 0; w < 20; w++) {
+        struct usb_fs_complete c; memset(&c, 0, sizeof(c));
+        if (ioctl(fd, USB_FS_COMPLETE, &c) == 0) return ep->status ? -1000 - ep->status : 0;
+        if (errno != EBUSY) return -errno;
+        usleep(10000);
+    }
+    struct usb_fs_stop sp; memset(&sp, 0, sizeof(sp)); sp.ep_index = (uint8_t)idx;
+    ioctl(fd, USB_FS_STOP, &sp);
+    return -ETIMEDOUT;
+}
+
+static int g_n_extra = 0;
+
 static int send_report(int fd, struct usb_fs_endpoint *eps, int out_opened, int iface,
                        const uint8_t *b, uint8_t n) {
     static int last_method = -1;
     int m = sc2_haptic_method, r = -1, used = 0;
-    if ((m == 0 || m == 1) && out_opened) { r = usb_send_out(fd, &eps[1], b, n, "haptic"); used = 1; }
+    if ((m == 0 || m == 1) && out_opened) { r = send_out_idx(fd, eps, 1, b, n); used = 1; }
+    if (m == 4) {
+        used = 4; r = out_opened ? send_out_idx(fd, eps, 1, b, n) : -1;
+        for (int k = 0; k < g_n_extra; k++) {
+            int rk = send_out_idx(fd, eps, 2 + k, b, n);
+            LOG("haptics: broadcast OUT index %d → %d\n", 2 + k, rk);
+            if (rk == 0) r = 0;
+        }
+    }
     if (r != 0 && (m == 0 || m == 2))    { r = ctrl_report(fd, iface, 2, b, n); used = 2; }
     if (r != 0 && m == 3)                { r = ctrl_report(fd, iface, 3, b, n); used = 3; }
     sc2_hap_last_via = used; sc2_hap_last_err = r;
@@ -103,7 +134,8 @@ static int send_report(int fd, struct usb_fs_endpoint *eps, int out_opened, int 
     return r;
 }
 
-void sc2_haptic_service(int fd, struct usb_fs_endpoint *eps, int out_opened, int iface) {
+void sc2_haptic_service(int fd, struct usb_fs_endpoint *eps, int out_opened, int iface, int n_extra) {
+    g_n_extra = n_extra;
     static int logged_fail = 0, logged_ok = 0;
     uint8_t b[12]; uint8_t n;
 

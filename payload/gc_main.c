@@ -515,7 +515,9 @@ static void *usb_hid_thread(void *arg) {
     uint16_t vid = targ->vid, pid = targ->pid;
     free(targ);
 
-    struct usb_fs_endpoint eps[2];
+    struct usb_fs_endpoint eps[2 + SC2_HAP_MAX_OUT];
+    sc2_ep_map_t sc2_map; memset(&sc2_map, 0, sizeof(sc2_map));
+    int sc2_n_out = 0;
     struct usb_fs_init     init;
     struct usb_fs_open     fs_open;
     struct usb_fs_start    start;
@@ -575,6 +577,7 @@ static void *usb_hid_thread(void *arg) {
         fd = open(dev_path, O_RDWR);
         if (fd < 0) { gp_log("slot[%d] SC2 open fail errno=%d\n", slot, errno); goto exit_slot; }
 
+        sc2_ep_map(fd, &sc2_map);            /* logs every interface's IN/OUT */
         uint8_t addrs[SC2_MAX_EPS];
         int n_eps = sc2_list_in_eps(fd, is_puck, addrs, SC2_MAX_EPS);
         if (n_eps == 0) {           /* descriptor read failed: known puck layout guess */
@@ -607,7 +610,7 @@ static void *usb_hid_thread(void *arg) {
 
         /* Re-init with the single active endpoint at index 0 for the main loop */
         memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
-        init.pEndpoints=eps; init.ep_index_max=2;
+        init.pEndpoints=eps; init.ep_index_max=2 + SC2_HAP_MAX_OUT;
         if (ioctl(fd,USB_FS_INIT,&init)!=0){ close(fd); goto exit_slot; }
         memset(&fs_open,0,sizeof(fs_open));
         fs_open.ep_index=0; fs_open.ep_no=(uint8_t)active;
@@ -621,18 +624,41 @@ static void *usb_hid_thread(void *arg) {
         eps[0].timeout=0;   /* wireless: idle gaps are normal, don't time out */
         eps[0].flags=USB_FS_FLAG_SINGLE_SHORT_OK|USB_FS_FLAG_MULTI_SHORT_OK;
 
-        /* Haptics: the slot's interrupt OUT usually mirrors its IN (0x83 → 0x03).
-         * If it won't open, sc2_haptics falls back to SET_REPORT on ep0. */
-        sc2_iface = active - 0x81;
-        if (sc2_iface < 0) sc2_iface = 0;
-        memset(&fs_open,0,sizeof(fs_open));
-        fs_open.ep_index=1; fs_open.ep_no=(uint8_t)(active & 0x7f);
-        fs_open.max_bufsize=64; fs_open.max_frames=1;
-        out_opened = (ioctl(fd,USB_FS_OPEN,&fs_open)==0) ? 1 : 0;
-        gp_log("slot[%d] SC2 haptics: iface %d, OUT ep 0x%02x %s\n", slot, sc2_iface,
-               active & 0x7f, out_opened ? "opened" : "unavailable (using SET_REPORT)");
-        sc2_haptic_available = 1;
-        sc2_hap_out_ep = out_opened ? (active & 0x7f) : -1;
+        /* Haptics: use the OUT endpoint that belongs to the SAME interface as
+         * the active IN, read from the descriptor (not guessed). Other slot
+         * interfaces' OUTs are opened too, for the broadcast test method. */
+        {
+            int k = sc2_iface_of_in(&sc2_map, (uint8_t)active);
+            uint8_t own_out = 0;
+            if (k >= 0) { sc2_iface = sc2_map.it[k].iface; own_out = sc2_map.it[k].out_ep; }
+            else        { sc2_iface = active - 0x81; if (sc2_iface < 0) sc2_iface = 0; }
+            out_opened = 0;
+            if (own_out) {
+                memset(&fs_open,0,sizeof(fs_open));
+                fs_open.ep_index=1; fs_open.ep_no=own_out;
+                fs_open.max_bufsize=64; fs_open.max_frames=1;
+                out_opened = (ioctl(fd,USB_FS_OPEN,&fs_open)==0) ? 1 : 0;
+            }
+            gp_log("slot[%d] SC2 haptics: active IN 0x%02x → iface %d, own OUT 0x%02x\n",
+                   slot, active, sc2_iface, own_out);
+            if (own_out) gp_log("slot[%d] SC2 haptics: OUT 0x%02x %s\n", slot, own_out,
+                                out_opened ? "opened" : "failed to open");
+            sc2_n_out = 0;
+            for (int j = 0; j < sc2_map.n && sc2_n_out < SC2_HAP_MAX_OUT; j++) {
+                uint8_t o = sc2_map.it[j].out_ep;
+                if (!o || o == own_out) continue;
+                memset(&fs_open,0,sizeof(fs_open));
+                fs_open.ep_index=(uint8_t)(2 + sc2_n_out); fs_open.ep_no=o;
+                fs_open.max_bufsize=64; fs_open.max_frames=1;
+                if (ioctl(fd,USB_FS_OPEN,&fs_open)==0) {
+                    sc2_n_out++;
+                    gp_log("slot[%d] SC2 haptics: extra OUT 0x%02x (iface %d) for broadcast test\n",
+                           slot, o, sc2_map.it[j].iface);
+                }
+            }
+            sc2_haptic_available = 1;
+            sc2_hap_out_ep = out_opened ? own_out : -1;
+        }
         goto main_loop;
     }
 
@@ -790,7 +816,7 @@ main_loop: ;
         } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
-            sc2_haptic_service(fd, eps, out_opened, sc2_iface);
+            sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
             if (was && !sc2_link) {
                 inject_pad(slot, &pad);                     /* release everything first */
                 sc2_vda_detach(slot, "controller asleep / out of range");

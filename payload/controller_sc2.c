@@ -59,6 +59,51 @@ int sc2_list_in_eps(int fd, int is_puck, uint8_t *out, int max) {
     return n;
 }
 
+int sc2_ep_map(int fd, sc2_ep_map_t *m) {
+    memset(m, 0, sizeof(*m));
+    uint8_t d[1024];
+    struct usb_gen_descriptor g;
+    memset(&g, 0, sizeof(g));
+    g.ugd_data = d; g.ugd_maxlen = sizeof(d);
+    g.ugd_config_index = 0xFF;
+    if (ioctl(fd, USB_GET_FULL_DESC, &g) != 0) {
+        LOG("sc2: endpoint map unavailable (GET_FULL_DESC errno=%d)\n", errno);
+        return 0;
+    }
+    int total = g.ugd_actlen ? g.ugd_actlen : (d[2] | (d[3] << 8));
+    if (total > (int)sizeof(d)) total = sizeof(d);
+    int cur = -1;
+    for (int i = 0; i + 1 < total; ) {
+        int blen = d[i], type = d[i + 1];
+        if (blen < 2) break;
+        if (type == UDESC_INTERFACE && blen >= 6) {
+            int alt = d[i + 3];
+            cur = -1;
+            if (alt == 0 && m->n < 10) {
+                cur = m->n++;
+                m->it[cur].iface = d[i + 2];
+                m->it[cur].iclass = d[i + 5];
+            }
+        } else if (type == UDESC_ENDPOINT && blen >= 4 && cur >= 0) {
+            uint8_t addr = d[i + 2], attr = d[i + 3];
+            if ((attr & 0x03) == UE_INTERRUPT) {
+                if (addr & 0x80) { if (!m->it[cur].in_ep)  m->it[cur].in_ep  = addr; }
+                else             { if (!m->it[cur].out_ep) m->it[cur].out_ep = addr; }
+            }
+        }
+        i += blen;
+    }
+    for (int k = 0; k < m->n; k++)
+        LOG("sc2: iface %d class 0x%02x: IN 0x%02x OUT 0x%02x\n", m->it[k].iface,
+            m->it[k].iclass, m->it[k].in_ep, m->it[k].out_ep);
+    return m->n;
+}
+
+int sc2_iface_of_in(const sc2_ep_map_t *m, uint8_t in_ep) {
+    for (int k = 0; k < m->n; k++) if (m->it[k].in_ep == in_ep) return k;
+    return -1;
+}
+
 /* ── active-slot search ───────────────────────────────────────────────── */
 
 int sc2_find_active_ep(int fd, struct usb_fs_endpoint *eps,

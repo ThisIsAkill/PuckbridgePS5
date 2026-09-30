@@ -235,7 +235,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <h2>Vibration test</h2>
         <p id="hapNote">Checks the controller's haptics. If nothing happens, try each method and then send the log.</p>
         <div class="btns" style="margin-bottom:10px">
-          <select id="hapVia" aria-label="Send method"><option value="0">Method: automatic</option><option value="1">Method 1: interrupt OUT</option><option value="2">Method 2: output report</option><option value="3">Method 3: feature report</option></select>
+          <select id="hapVia" aria-label="Send method"><option value="0">Method: automatic</option><option value="1">Method 1: interrupt OUT</option><option value="2">Method 2: output report</option><option value="3">Method 3: feature report</option><option value="4">Method 4: every Puck output</option></select>
         </div>
         <div class="btns">
           <button data-hap="left">Buzz left</button>
@@ -528,7 +528,7 @@ async function poll(){
 /* ── help ── */
 $$("[data-hap]").forEach(b=>b.onclick=async()=>{try{await api("/api/haptic?kind="+b.dataset.hap+"&via="+$("#hapVia").value,{method:"POST"});toast("Sent to controller")}catch(e){toast(e.message||"Request failed")}});
 function paintHap(){const h=status.hap;if(!h){$("#hapDiag").textContent="";return}
-  const via=["–","interrupt OUT","output report","feature report"][h.via]||"–";
+  const via=["–","interrupt OUT","output report","feature report","every Puck output"][h.via]||"–";
   $("#hapDiag").textContent=!status.haptics?"Controller not connected to the payload.":
    `Queued ${h.q}, sent ${h.sent}, failed ${h.fail}. Last: ${h.q?(h.err?"error "+h.err:"OK")+" via "+via:"none yet"}. OUT endpoint: ${h.out>=0?"0x"+h.out.toString(16).padStart(2,"0"):"not available"}.`}
 $("#logShow").onclick=async()=>{const p=$("#log");if(!p.hidden){p.hidden=true;$("#logShow").textContent="Show log";return}p.textContent=await api("/api/log");p.hidden=false;$("#logShow").textContent="Hide log";p.scrollTop=p.scrollHeight};
@@ -542,8 +542,11 @@ async function paintBridge(){
   if(!b.title||b.state===0){$("#bridgeOut").innerHTML=row("Status","Start a game to run the check",null);return}
   if(b.state<3){$("#bridgeOut").innerHTML=row(name,b.state===1?"Waiting for the game to finish loading…":"Checking…",null);return}
   const pass=b.result===2&&b.scan===0;
+  const why=b.result===-4?"Couldn't pick a player slot (PoorDS4 only takes over DS4 slots; doesn't block vibration)":
+            b.result===-2?"No game running":b.result===-3?"More than one game process":("Not compatible: "+b.reason);
   $("#bridgeOut").innerHTML=
-    row(name+" · "+b.title, pass?"Compatible":"Not compatible: "+b.reason, pass)+
+    row(name+" · "+b.title, pass?"Compatible":why, pass)+
+    row("Check result code", String(b.result), pass)+
     row("Controller input hooks", b.read_hooks>0?`${b.read_hooks} found`:"none found", b.read_hooks>0)+
     row("Vibration hook", b.vibration_hooks>0?"found":"not found", b.vibration_hooks>0)+
     row("Adaptive trigger hook", b.trigger_hooks>0?"found":"not found", b.trigger_hooks>0)+
