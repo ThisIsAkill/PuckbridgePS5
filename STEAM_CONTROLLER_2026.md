@@ -42,7 +42,10 @@ Game vibration, and input that doesn't need a virtual controller, both depend on
 When a game starts you'll see which profile attached, or that it's using Default.
 
 ## Vibration
-**Game vibration (experimental):** turn it on in *Vibration & help*. About 10 seconds after a game starts, Puckbridge redirects the game's `scePadSetVibration` import to a 64-byte stub that records the motor levels and then calls Sony's original function, so a DualSense still vibrates normally. The levels are forwarded to the Steam Controller: low-frequency to the left, high-frequency to the right. Switching it off restores the game's import. Adaptive trigger effects aren't forwarded yet.
+**In games (experimental):** set in *Vibration & help → In games*. About 10 seconds after a game starts, Puckbridge redirects the game's own `libScePad` imports to small stubs, using PoorDS4's method:
+- **Input:** `scePadReadState`/`scePadRead` (and Ext) call Sony's original, then merge in the Steam Controller: buttons combined, and a stick or trigger taken from whichever controller is moving it. Both controllers drive the same player. In a hooked game the virtual controller is removed. It comes back on the home screen and in games that can't be hooked. The Steam button can't open the PS menu while in a hooked game.
+- **Vibration:** `scePadSetVibration` records the motor levels and calls Sony's original, so the DualSense still vibrates. The levels drive the Steam Controller: low-frequency on the left, high-frequency on the right.
+If the payload stops, merging switches off by itself within about a second. Turning a toggle off restores the game's imports. Adaptive trigger effects aren't forwarded yet.
 
 The portal's *Vibration & help* tab tests the controller's haptics, with three send methods. Game rumble isn't passed through yet.
 

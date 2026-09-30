@@ -51,7 +51,7 @@
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
 #include "bridge_probe.h"
-#include "game_vibe.h"
+#include "game_hooks.h"
 
 /* ── Logging ──────────────────────────────────────────────────────────── */
 #define LOG_DIR  "/data/ghostpad"
@@ -818,6 +818,7 @@ main_loop: ;
         } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
+            game_hooks_feed(&pad, sc2_link);
             sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
             if (was && !sc2_link) {
                 inject_pad(slot, &pad);                     /* release everything first */
@@ -825,7 +826,14 @@ main_loop: ;
                 notify("Puckbridge: Steam Controller disconnected");
                 injected = 0;
             }
-            if (sc2_link && !g_slots[slot].vdi_ready) sc2_vda_attach(slot);
+            /* In a hooked game the Steam Controller is merged straight into the
+             * player's controller reads, so the virtual pad is removed there
+             * (it would only take rumble away from the DualSense). It comes
+             * back for the home screen and games that couldn't be hooked. */
+            if (game_hooks_input_active()) {
+                if (g_slots[slot].vdi_ready) sc2_vda_detach(slot, "game uses merged input");
+                injected = 0;
+            } else if (sc2_link && !g_slots[slot].vdi_ready) sc2_vda_attach(slot);
         } else if (pid == PID_STEAM_WIRED) {
             injected = steam_handle_packet(buf, len, &pad);
             if ((++steam_pkts % 1250u) == 0) steam_keepalive(fd);   /* ~every 5s */
@@ -1094,7 +1102,7 @@ int main(void) {
     sc2_notify_fn = notify_str;
     sc2_select_start();
     bridge_probe_start(g_inject_uid);
-    game_vibe_start();
+    game_hooks_start();
     webui_start();
     notify("Puckbridge: remap portal on port %d", WEBUI_PORT);
 

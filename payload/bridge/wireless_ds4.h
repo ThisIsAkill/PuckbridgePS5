@@ -203,8 +203,21 @@ int wireless_ds4_game_bridge_remove(pid_t game_pid,
 int wireless_ds4_game_bridge_quiesce(pid_t game_pid,
                                     intptr_t args_address);
 
-/* PuckbridgePS5: game vibration capture (see end of wireless_ds4.c) */
-int pb_vibe_install(pid_t *out_pid, intptr_t *out_args, char *why, size_t why_n);
-int pb_vibe_read(pid_t pid, intptr_t args_addr, uint32_t *seq, uint8_t *large, uint8_t *small,
-                 int32_t *handle, uint64_t *calls);
-int pb_vibe_remove(pid_t pid, intptr_t args_addr);
+/* PuckbridgePS5: game integration hooks (see end of wireless_ds4.c) */
+typedef struct {
+    uint32_t buttons;
+    uint8_t  lx, ly, rx, ry, l2, r2;
+    uint8_t  move_l, move_r;          /* SC2 stick outside deadzone: override */
+    uint8_t  fingers;
+    uint16_t tx[2], ty[2];
+    uint8_t  tid[2];
+} PbPublishFrame;
+typedef struct {
+    uint32_t vseq; uint8_t vlarge, vsmall; int32_t vhandle;
+    uint64_t vcalls, in_calls, in_merged;
+} PbStatus;
+int pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_args,
+                     char *why, size_t why_n);
+int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled);
+int pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st);
+int pb_hooks_remove(pid_t pid, intptr_t args_addr);

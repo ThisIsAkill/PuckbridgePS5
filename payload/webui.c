@@ -6,7 +6,7 @@
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
 #include "bridge_probe.h"
-#include "game_vibe.h"
+#include "game_hooks.h"
 #include "webui_html.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -222,9 +222,12 @@ static void handle(int fd) {
         reply(fd, 200, "application/json", out, s.n);
         return;
     }
-    if (!strncmp(path, "/api/gamevibe", 13)) {
-        if (is_post) game_vibe_set_enabled(strstr(path, "on=1") != NULL);
-        char out[512]; int n = game_vibe_json(out, sizeof(out));
+    if (!strncmp(path, "/api/gamehooks", 14)) {
+        if (is_post) {
+            const char *i = strstr(path, "input="), *v = strstr(path, "vibration=");
+            game_hooks_set(i ? i[6] == '1' : -1, v ? v[10] == '1' : -1);
+        }
+        char out[512]; int n = game_hooks_json(out, sizeof(out));
         reply(fd, 200, "application/json", out, n > 0 ? (size_t)n : 0);
         return;
     }
