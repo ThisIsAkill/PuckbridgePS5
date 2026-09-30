@@ -1,9 +1,8 @@
 #pragma once
 #include <stdint.h>
 
-/* On-console menu, opened by holding the "..." button.
- * Called with the physical input bitmask each report. May modify *in
- * (a short tap of "..." is still passed through). Returns 1 while the menu
- * is open: the caller then sends a neutral pad to the game. */
+/* On-console menu (PS5 notifications), opened by the PB_MENU action.
+ * sc2_menu_filter returns 1 while open: the caller sends a neutral pad. */
 int sc2_menu_filter(uint32_t *in);
+void sc2_menu_toggle(void);
 extern volatile int sc2_menu_open;

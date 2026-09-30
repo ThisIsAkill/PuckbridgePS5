@@ -50,6 +50,7 @@
 #include "webui.h"
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
+#include "bridge_probe.h"
 
 /* ── Logging ──────────────────────────────────────────────────────────── */
 #define LOG_DIR  "/data/ghostpad"
@@ -460,6 +461,43 @@ static int32_t create_vda_for_slot(int slot) {
     return handle;
 }
 
+/* ── Lazy virtual pad for the Steam Controller (2026) ───────────────────
+ * The Puck stays plugged in while the controller sleeps. Creating the
+ * virtual DualSense only while the controller is actually on means the PS5
+ * never waits on it (e.g. after rest mode) and a real DualSense keeps
+ * working alongside it. */
+static int sc2_vda_attach(int slot) {
+    pthread_mutex_lock(&g_slot_lock);
+    int have = g_slots[slot].vdi_ready;
+    pthread_mutex_unlock(&g_slot_lock);
+    if (have) return 1;
+
+    int32_t h = create_vda_for_slot(slot);
+    if (h < 0) { gp_log("slot[%d] SC2 virtual pad create failed\n", slot); return 0; }
+    pthread_mutex_lock(&g_slot_lock);
+    g_slots[slot].handle = h;
+    g_slots[slot].vdi_ready = 1;
+    g_slots[slot].inject_count = 0;
+    g_slots[slot].confirmed = 0;
+    pthread_mutex_unlock(&g_slot_lock);
+    notify("Puckbridge: Steam Controller connected");
+    return 1;
+}
+
+static void sc2_vda_detach(int slot, const char *why) {
+    pthread_mutex_lock(&g_slot_lock);
+    int32_t h = g_slots[slot].vdi_ready ? g_slots[slot].handle : -1;
+    g_slots[slot].vdi_ready = 0;
+    g_slots[slot].handle = -1;
+    g_slots[slot].confirmed = 0;
+    pthread_mutex_unlock(&g_slot_lock);
+    if (g_assign_slot == slot) g_assign_slot = -1;
+    if (h >= 0) {
+        scePadVirtualDeviceDeleteDevice(h);
+        gp_log("slot[%d] SC2 virtual pad removed (%s)\n", slot, why);
+    }
+}
+
 /* ── USB HID thread ───────────────────────────────────────────────────── */
 /* Single-session: receives slot+path+vid+pid, runs until disconnect, then exits.
  * Manager thread handles re-detection after exit. */
@@ -561,10 +599,11 @@ static void *usb_hid_thread(void *arg) {
         /* Wait for the controller to wake / pick the puck slot it's paired to */
         int active = 0, told = 0;
         while ((active = sc2_find_active_ep(fd, sc2_eps, addrs, n_eps, 2000)) == 0) {
-            if (!told) { notify("Puckbridge: Puck ready — turn on your Steam Controller"); told = 1; }
+            if (!told) { gp_log("slot[%d] Puck idle — waiting for the controller to turn on\n", slot); told = 1; }
         }
         memset(&uninit,0,sizeof(uninit)); ioctl(fd,USB_FS_UNINIT,&uninit);
         if (active < 0) { gp_log("slot[%d] SC2 puck removed\n",slot); close(fd); goto exit_slot; }
+        sc2_vda_attach(slot);
 
         /* Re-init with the single active endpoint at index 0 for the main loop */
         memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
@@ -593,6 +632,7 @@ static void *usb_hid_thread(void *arg) {
         gp_log("slot[%d] SC2 haptics: iface %d, OUT ep 0x%02x %s\n", slot, sc2_iface,
                active & 0x7f, out_opened ? "opened" : "unavailable (using SET_REPORT)");
         sc2_haptic_available = 1;
+        sc2_hap_out_ep = out_opened ? (active & 0x7f) : -1;
         goto main_loop;
     }
 
@@ -751,8 +791,13 @@ main_loop: ;
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
             sc2_haptic_service(fd, eps, out_opened, sc2_iface);
-            if (was && !sc2_link) notify("Puckbridge: slot[%d] Steam Controller asleep / out of range", slot);
-            if (!was && sc2_link) notify("Puckbridge: slot[%d] Steam Controller reconnected", slot);
+            if (was && !sc2_link) {
+                inject_pad(slot, &pad);                     /* release everything first */
+                sc2_vda_detach(slot, "controller asleep / out of range");
+                notify("Puckbridge: Steam Controller disconnected");
+                injected = 0;
+            }
+            if (sc2_link && !g_slots[slot].vdi_ready) sc2_vda_attach(slot);
         } else if (pid == PID_STEAM_WIRED) {
             injected = steam_handle_packet(buf, len, &pad);
             if ((++steam_pkts % 1250u) == 0) steam_keepalive(fd);   /* ~every 5s */
@@ -791,7 +836,7 @@ uninit_exit:
 
 exit_slot:
     gp_log("slot[%d] USB thread exiting — freeing slot\n", slot);
-    scePadVirtualDeviceDeleteDevice(g_slots[slot].handle);
+    if (g_slots[slot].handle >= 0) scePadVirtualDeviceDeleteDevice(g_slots[slot].handle);
     pthread_mutex_lock(&g_slot_lock);
     g_slots[slot].handle    = -1;
     g_slots[slot].vdi_ready = 0;
@@ -855,7 +900,8 @@ static void *controller_manager_thread(void *arg) {
                 (vid==VID_STEAM  && pid==PID_SC2_WIRED)   ? "Steam Controller (2026)" : "Unknown";
 
             gp_log("manager: %s at %s → slot[%d]\n", name, path, slot);
-            notify("Puckbridge: %s detected — assign user on screen", name);
+            int lazy = (vid==VID_STEAM && (pid==PID_SC2_PUCK || pid==PID_SC2_WIRED));
+            if (!lazy) notify("Puckbridge: %s detected — assign user on screen", name);
 
             /* Claim the slot path before VDA so manager skips it if we retry.
              * Set the assignment gate — released when user confirms (button press). */
@@ -866,10 +912,12 @@ static void *controller_manager_thread(void *arg) {
             g_slots[slot].vid = vid;
             g_slots[slot].pid = pid;
             pthread_mutex_unlock(&g_slot_lock);
+            int32_t handle = -1;
+            if (!lazy) {
             g_assign_slot = slot;
 
             /* Create VDA and force_bind (shows PS5 assignment dialog) */
-            int32_t handle = create_vda_for_slot(slot);
+            handle = create_vda_for_slot(slot);
             if (handle < 0) {
                 gp_log("manager: slot[%d] VDA failed — releasing\n", slot);
                 pthread_mutex_lock(&g_slot_lock);
@@ -886,6 +934,7 @@ static void *controller_manager_thread(void *arg) {
             g_slots[slot].vdi_ready   = 1;
             g_slots[slot].inject_count = 0;
             pthread_mutex_unlock(&g_slot_lock);
+            }   /* !lazy — SC2 creates its virtual pad when the controller turns on */
 
             /* Launch USB reader thread */
             usb_thread_arg_t *targ = malloc(sizeof(*targ));
@@ -1016,6 +1065,7 @@ int main(void) {
     /* Remap portal + per-game profile switching */
     sc2_notify_fn = notify_str;
     sc2_select_start();
+    bridge_probe_start(g_inject_uid);
     webui_start();
     notify("Puckbridge: remap portal on port %d", WEBUI_PORT);
 

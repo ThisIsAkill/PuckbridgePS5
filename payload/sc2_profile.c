@@ -39,6 +39,7 @@ static const struct { const char *n; uint32_t m; } k_out[] = {
     {"LEFT",SCE_PAD_BUTTON_LEFT},{"RIGHT",SCE_PAD_BUTTON_RIGHT},
     {"OPTIONS",SCE_PAD_BUTTON_OPTIONS},{"CREATE",SCE_PAD_BUTTON_SHARE},
     {"PS",SCE_PAD_BUTTON_PS},{"TOUCHPAD",SCE_PAD_BUTTON_TOUCH_PAD},
+    {"PB_MENU",PB_ACT_MENU},
 };
 #define N_OUT ((int)(sizeof(k_out)/sizeof(k_out[0])))
 
@@ -67,6 +68,8 @@ void sc2_profile_default(sc2_profile_t *p) {
     p->map[IN_RPAD_CLICK] = SCE_PAD_BUTTON_TOUCH_PAD;
     p->lpad = PAD_TOUCH; p->rpad = PAD_TOUCH;
     p->deadzone = 9;
+    p->shift_in = -1;
+    p->long_ms = 400; p->double_ms = 250; p->turbo_ms = 60;
 }
 
 static char *trim(char *s) {
@@ -105,9 +108,33 @@ void sc2_profile_parse(const char *text, sc2_profile_t *p) {
             continue;
         }
         int done = 0;
+        char *dot = strchr(k, '.');
+        if (dot) {                                     /* KEY.activator */
+            *dot = 0; const char *act = dot + 1;
+            for (int i = 0; i < SC2_IN_COUNT && !done; i++) {
+                if (strcasecmp(k, sc2_in_keys[i])) continue;
+                done = 1;
+                if      (!strcasecmp(act, "long"))   p->lng[i]    = parse_combo(v);
+                else if (!strcasecmp(act, "double")) p->dbl[i]    = parse_combo(v);
+                else if (!strcasecmp(act, "shift"))  p->shf[i]    = parse_combo(v);
+                else if (!strcasecmp(act, "turbo"))  p->turbo[i]  = (uint8_t)(atoi(v) != 0);
+                else if (!strcasecmp(act, "toggle")) p->toggle[i] = (uint8_t)(atoi(v) != 0);
+                else if (!strcasecmp(act, "full") && (i == IN_LT || i == IN_RT))
+                    p->full[i == IN_RT] = parse_combo(v);
+            }
+            continue;
+        }
         for (int i = 0; i < SC2_IN_COUNT && !done; i++)
             if (!strcasecmp(k, sc2_in_keys[i])) { p->map[i] = parse_combo(v); done = 1; }
         if (done) continue;
+        if (!strcasecmp(k, "SHIFT")) {
+            p->shift_in = -1;
+            for (int i = 0; i < SC2_IN_COUNT; i++) if (!strcasecmp(v, sc2_in_keys[i])) p->shift_in = (int8_t)i;
+            continue;
+        }
+        if (!strcasecmp(k, "LONG_MS"))   { int x = atoi(v); p->long_ms   = (uint16_t)(x < 150 ? 150 : x > 2000 ? 2000 : x); continue; }
+        if (!strcasecmp(k, "DOUBLE_MS")) { int x = atoi(v); p->double_ms = (uint16_t)(x < 100 ? 100 : x > 800 ? 800 : x);   continue; }
+        if (!strcasecmp(k, "TURBO_MS"))  { int x = atoi(v); p->turbo_ms  = (uint16_t)(x < 20 ? 20 : x > 500 ? 500 : x);     continue; }
         if (!strcasecmp(k, "LPAD") || !strcasecmp(k, "RPAD")) {
             for (int i = 0; i < 4; i++) if (!strcasecmp(v, k_pad[i])) {
                 if (k[0] == 'L' || k[0] == 'l') p->lpad = (uint8_t)i; else p->rpad = (uint8_t)i;
@@ -125,15 +152,24 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
     size_t o = 0;
 #define PUT(...) do { int w = snprintf(out + o, o < n ? n - o : 0, __VA_ARGS__); if (w > 0) o += (size_t)w; } while (0)
     PUT("name=%s\n", p->name);
+#define PUTCOMBO(prefix, key, suffix, mask) do { \
+        PUT(prefix "%s" suffix "=", key); int first_ = 1; \
+        for (int j = 0; j < N_OUT; j++) \
+            if (k_out[j].m && ((mask) & k_out[j].m) == k_out[j].m) { PUT("%s%s", first_ ? "" : "+", k_out[j].n); first_ = 0; } \
+        PUT("%s\n", first_ ? "NONE" : ""); } while (0)
+    for (int i = 0; i < SC2_IN_COUNT; i++) PUTCOMBO("", sc2_in_keys[i], "", p->map[i]);
     for (int i = 0; i < SC2_IN_COUNT; i++) {
-        PUT("%s=", sc2_in_keys[i]);
-        int first = 1;
-        for (int j = 0; j < N_OUT; j++)
-            if ((p->map[i] & k_out[j].m) == k_out[j].m && k_out[j].m) {
-                PUT("%s%s", first ? "" : "+", k_out[j].n); first = 0;
-            }
-        PUT("%s\n", first ? "NONE" : "");
+        if (p->lng[i])    PUTCOMBO("", sc2_in_keys[i], ".long",   p->lng[i]);
+        if (p->dbl[i])    PUTCOMBO("", sc2_in_keys[i], ".double", p->dbl[i]);
+        if (p->shf[i])    PUTCOMBO("", sc2_in_keys[i], ".shift",  p->shf[i]);
+        if (p->turbo[i])  PUT("%s.turbo=1\n",  sc2_in_keys[i]);
+        if (p->toggle[i]) PUT("%s.toggle=1\n", sc2_in_keys[i]);
     }
+    if (p->full[0]) PUTCOMBO("", "LT", ".full", p->full[0]);
+    if (p->full[1]) PUTCOMBO("", "RT", ".full", p->full[1]);
+#undef PUTCOMBO
+    PUT("SHIFT=%s\n", p->shift_in >= 0 && p->shift_in < SC2_IN_COUNT ? sc2_in_keys[(int)p->shift_in] : "NONE");
+    PUT("LONG_MS=%d\nDOUBLE_MS=%d\nTURBO_MS=%d\n", p->long_ms, p->double_ms, p->turbo_ms);
     PUT("LPAD=%s\nRPAD=%s\n", k_pad[p->lpad & 3], k_pad[p->rpad & 3]);
     PUT("INVERT_LY=%d\nINVERT_RY=%d\nSWAP_STICKS=%d\nDEADZONE=%d\n",
         p->invert_ly, p->invert_ry, p->swap_sticks, p->deadzone);
@@ -144,7 +180,7 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
 
 void sc2_combo_name(uint32_t mask, char *out, size_t n) {
     static const char *nice[] = { "Cross","Circle","Square","Triangle","L1","R1","L2","R2",
-        "L3","R3","Up","Down","Left","Right","Options","Create","PS","Touchpad" };
+        "L3","R3","Up","Down","Left","Right","Options","Create","PS","Touchpad","Puckbridge menu" };
     size_t o = 0; out[0] = 0;
     for (int j = 0; j < N_OUT; j++)
         if (mask & k_out[j].m) {

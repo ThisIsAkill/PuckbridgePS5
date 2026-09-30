@@ -41,6 +41,7 @@ Builds cleanly. The portal and profile engine are tested off-console. On-console
 - Ghostcontrol virtual DualSense injection: StonedModder
 - Steam Controller (2026) protocol: Linux `hid-steam` driver (Vicki Pfau et al.) and SDL
 - PS5 payload SDK: ps5-payload-dev
+- Game bridge (vendored in `payload/bridge/`): [PoorDS4](https://github.com/ItsBlurf/PoorDS4) by ItsBlurf
 
 ## License
 GPL-3.0-or-later, same as upstream. See [LICENSE](LICENSE).

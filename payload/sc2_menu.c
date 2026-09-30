@@ -1,7 +1,7 @@
 /* sc2_menu.c — on-console profile/remap menu, driven by the controller and
  * shown through PS5 notifications.
  *
- *   Hold "..."            open / close
+ *   Bound action         open / close (bind "Puckbridge menu" to any input)
  *   D-pad up / down       choose item
  *   D-pad left / right    change profile (on the Profile item)
  *   A                     select        B  close
@@ -15,8 +15,6 @@
 #include <time.h>
 #include <stdarg.h>
 
-#define HOLD_MS  600
-#define TAP_MS   120
 
 volatile int sc2_menu_open = 0;
 
@@ -37,10 +35,6 @@ static int np = 0, pidx = 0;
 static int st = ST_MAIN, item = IT_PROFILE, src = -1;
 static uint32_t prev = 0, wait_release = 0;
 
-static int64_t now_ms(void) {
-    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-}
 
 static void say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void say(const char *fmt, ...) {
@@ -107,37 +101,20 @@ static void do_remap(int from, int to) {
     say("Saved to \"%s\"\n%s now does %s", p.name, k_in_nice[from], what);
 }
 
+void sc2_menu_toggle(void) {
+    if (sc2_menu_open) close_menu("Puckbridge menu closed");
+    else { open_menu(); wait_release = 0xFFFFFFFFu; }   /* ignore whatever is held now */
+}
+
 int sc2_menu_filter(uint32_t *in) {
-    static int64_t qam_t0 = -1, tap_until = 0;
-    static int hold_used = 0;
-    const uint32_t QAM = 1u << IN_QAM;
-    int64_t t = now_ms();
     uint32_t cur = *in;
-    int qam = (cur & QAM) != 0;
+    if (!sc2_menu_open) { prev = cur; return 0; }
 
-    /* ── "..." hold detection (works whether menu is open or not) ── */
-    if (qam) {
-        if (qam_t0 < 0) { qam_t0 = t; hold_used = 0; }
-        else if (!hold_used && t - qam_t0 >= HOLD_MS) {
-            hold_used = 1;
-            if (sc2_menu_open) close_menu("Puckbridge menu closed");
-            else { open_menu(); wait_release = cur; }
-        }
-    } else if (qam_t0 >= 0) {
-        if (!hold_used && t - qam_t0 < HOLD_MS) {
-            if (!sc2_menu_open) tap_until = t + TAP_MS;             /* plain tap */
-            else if (st != ST_MAIN) { st = ST_MAIN; say("Remap cancelled"); show_item(); }
-        }
-        qam_t0 = -1;
-    }
-    cur &= ~QAM;
-
-    if (!sc2_menu_open) {
-        prev = cur;
-        if (t < tap_until) cur |= QAM;
-        *in = cur;
-        return 0;
-    }
+    /* the input bound to the menu action closes it again */
+    uint32_t menu_keys = 0;
+    { sc2_profile_t P; sc2_active_get(&P);
+      for (int i = 0; i < SC2_IN_COUNT; i++)
+          if ((P.map[i] | P.lng[i] | P.dbl[i] | P.shf[i]) & PB_ACT_MENU) menu_keys |= 1u << i; }
 
     /* ── menu open: act on new presses only ── */
     wait_release &= cur;                       /* ignore buttons held while opening */
@@ -145,6 +122,11 @@ int sc2_menu_filter(uint32_t *in) {
     prev = cur;
     *in = 0;
     if (!press) return 1;
+    if (press & menu_keys) {
+        if (st == ST_MAIN) close_menu("Puckbridge menu closed");
+        else { st = ST_MAIN; say("Remap cancelled"); show_item(); }
+        return 1;
+    }
 
     int first = 0;
     while (first < SC2_IN_COUNT && !(press & (1u << first))) first++;
@@ -175,7 +157,7 @@ int sc2_menu_filter(uint32_t *in) {
             close_menu(NULL);
         } else if (item == IT_REMAP) {
             st = ST_REMAP_SRC; sc2_haptic_tick();
-            say("Remap\nPress the button you want to change\n(tap ... to cancel)");
+            say("Remap\nPress the button you want to change\n(press the menu button again to cancel)");
         } else close_menu("Puckbridge menu closed");
     }
     return 1;

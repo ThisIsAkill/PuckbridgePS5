@@ -17,13 +17,27 @@ enum {
 /* Trackpad behaviour */
 enum { PAD_OFF, PAD_TOUCH, PAD_STICK, PAD_DPAD };
 
+/* Output bits above the DualSense range: Puckbridge actions, never sent to the PS5 */
+#define PB_ACT_MENU   0x80000000u   /* open/close the Puckbridge menu */
+#define PB_ACT_MASK   0x80000000u
+
+/* Steam Input-style bindings. Each input can fire different outputs per
+ * activator; a "shift" input switches every input to its shift binding. */
 typedef struct {
     char     name[48];
-    uint32_t map[SC2_IN_COUNT];   /* DualSense button mask fired by each input */
-    uint8_t  lpad, rpad;          /* PAD_* */
+    uint32_t map[SC2_IN_COUNT];     /* regular press */
+    uint32_t lng[SC2_IN_COUNT];     /* long press (0 = not used) */
+    uint32_t dbl[SC2_IN_COUNT];     /* double press (0 = not used) */
+    uint32_t shf[SC2_IN_COUNT];     /* while shift held (0 = same as regular) */
+    uint32_t full[2];               /* LT / RT full pull extra output */
+    uint8_t  turbo[SC2_IN_COUNT];   /* regular output repeats while held */
+    uint8_t  toggle[SC2_IN_COUNT];  /* regular output latches on/off */
+    int8_t   shift_in;              /* IN_* acting as shift, -1 = none */
+    uint16_t long_ms, double_ms, turbo_ms;
+    uint8_t  lpad, rpad;            /* PAD_* */
     uint8_t  invert_ly, invert_ry;
     uint8_t  swap_sticks;
-    uint8_t  deadzone;            /* % of full stick travel, 0-40 */
+    uint8_t  deadzone;              /* % of full stick travel, 0-40 */
 } sc2_profile_t;
 
 extern const char *const sc2_in_keys[SC2_IN_COUNT];

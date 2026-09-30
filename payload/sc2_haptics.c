@@ -21,6 +21,9 @@ void ghostpad_status_log(const char *fmt, ...);
 #endif
 
 volatile int sc2_haptic_available = 0;
+volatile int sc2_haptic_method = 0;
+volatile unsigned sc2_hap_queued = 0, sc2_hap_sent = 0, sc2_hap_failed = 0;
+volatile int sc2_hap_last_err = 0, sc2_hap_last_via = 0, sc2_hap_out_ep = 0;   /* 0 auto, 1 interrupt OUT, 2 SET_REPORT output, 3 SET_REPORT feature */
 
 #define QN 8
 static pthread_mutex_t q_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -39,7 +42,7 @@ static int64_t now_ms(void) {
 static void push(const uint8_t *b, uint8_t n) {
     pthread_mutex_lock(&q_lock);
     int nx = (q_tail + 1) % QN;
-    if (nx != q_head) { memcpy(q[q_tail].b, b, n); q[q_tail].n = n; q_tail = nx; }
+    if (nx != q_head) { memcpy(q[q_tail].b, b, n); q[q_tail].n = n; q_tail = nx; sc2_hap_queued++; }
     pthread_mutex_unlock(&q_lock);
 }
 
@@ -68,21 +71,36 @@ void sc2_haptic_rumble_for(uint16_t left, uint16_t right, int ms) {
     pthread_mutex_unlock(&q_lock);
 }
 
-static int send_report(int fd, struct usb_fs_endpoint *eps, int out_opened, int iface,
-                       const uint8_t *b, uint8_t n) {
-    if (out_opened && usb_send_out(fd, &eps[1], b, n, "haptic") == 0) return 0;
-
-    /* Fallback: HID SET_REPORT (output) over ep0 */
-    uint8_t buf[16]; memcpy(buf, b, n);
+static int ctrl_report(int fd, int iface, int type, const uint8_t *b, uint8_t n) {
+    uint8_t buf[64]; memset(buf, 0, sizeof(buf)); memcpy(buf, b, n);
+    uint16_t len = (type == 3) ? 64 : n;          /* feature reports are fixed-size */
     struct usb_ctl_request req; memset(&req, 0, sizeof(req));
     req.ucr_data = buf;
     req.ucr_request.bmRequestType = 0x21;
-    req.ucr_request.bRequest      = 0x09;
-    USETW(req.ucr_request.wValue,  0x0200 | b[0]);
+    req.ucr_request.bRequest      = 0x09;                  /* SET_REPORT */
+    USETW(req.ucr_request.wValue,  (uint16_t)((type << 8) | b[0]));
     USETW(req.ucr_request.wIndex,  iface);
-    USETW(req.ucr_request.wLength, n);
-    if (ioctl(fd, USB_DO_REQUEST, &req) == 0) return 0;
-    return -errno;
+    USETW(req.ucr_request.wLength, len);
+    return ioctl(fd, USB_DO_REQUEST, &req) == 0 ? 0 : -errno;
+}
+
+static int send_report(int fd, struct usb_fs_endpoint *eps, int out_opened, int iface,
+                       const uint8_t *b, uint8_t n) {
+    static int last_method = -1;
+    int m = sc2_haptic_method, r = -1, used = 0;
+    if ((m == 0 || m == 1) && out_opened) { r = usb_send_out(fd, &eps[1], b, n, "haptic"); used = 1; }
+    if (r != 0 && (m == 0 || m == 2))    { r = ctrl_report(fd, iface, 2, b, n); used = 2; }
+    if (r != 0 && m == 3)                { r = ctrl_report(fd, iface, 3, b, n); used = 3; }
+    sc2_hap_last_via = used; sc2_hap_last_err = r;
+    if (r == 0) sc2_hap_sent++; else sc2_hap_failed++;
+    if (m != last_method || r != 0) {
+        static int n_err_logs = 0;
+        if (r == 0 || n_err_logs++ < 10)
+            LOG("haptics: method %d, sent via %d (OUT ep %s), report 0x%02x len %u, result %d\n",
+                m, used, out_opened ? "open" : "closed", b[0], n, r);
+        last_method = m;
+    }
+    return r;
 }
 
 void sc2_haptic_service(int fd, struct usb_fs_endpoint *eps, int out_opened, int iface) {

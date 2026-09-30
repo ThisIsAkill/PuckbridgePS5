@@ -5,6 +5,7 @@
 #include "game_list.h"
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
+#include "bridge_probe.h"
 #include "webui_html.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -130,8 +131,11 @@ static void handle(int fd) {
         sb_put(&sb, ",\"active\":"); json_str(&sb, a);
         sb_put(&sb, ",\"active_name\":"); json_str(&sb, pn);
         sb_put(&sb, ",\"override\":"); json_str(&sb, ov);
-        snprintf(num, sizeof(num), ",\"inputs\":%u,\"connected\":%d,\"menu\":%d,\"haptics\":%d}",
+        snprintf(num, sizeof(num), ",\"inputs\":%u,\"connected\":%d,\"menu\":%d,\"haptics\":%d",
                  (unsigned)sc2_live_inputs, sc2_live_connected, sc2_menu_open, sc2_haptic_available);
+        sb_put(&sb, num);
+        snprintf(num, sizeof(num), ",\"hap\":{\"q\":%u,\"sent\":%u,\"fail\":%u,\"err\":%d,\"via\":%d,\"out\":%d}}",
+                 sc2_hap_queued, sc2_hap_sent, sc2_hap_failed, sc2_hap_last_err, sc2_hap_last_via, sc2_hap_out_ep);
         sb_put(&sb, num);
         reply(fd, 200, "application/json", out, sb.n);
         return;
@@ -155,12 +159,14 @@ static void handle(int fd) {
         return;
     }
     if (is_post && !strncmp(path, "/api/haptic", 11)) {
-        if (!sc2_haptic_available) { REPLY_TXT(fd, 400, "controller not connected"); return; }
+        LOG("haptics: test requested %s (available=%d)\n", path, sc2_haptic_available);
+        if (!sc2_haptic_available) { REPLY_TXT(fd, 400, "Steam Controller isn't connected to the payload"); return; }
+        { const char *m = strstr(path, "via="); if (m && m[4] >= '0' && m[4] <= '3') sc2_haptic_method = m[4] - '0'; }
         if      (strstr(path, "kind=left"))   sc2_haptic_pulse(SC2_PAD_LEFT,  0x1F4, 0x1F4, 200);
         else if (strstr(path, "kind=right"))  sc2_haptic_pulse(SC2_PAD_RIGHT, 0x1F4, 0x1F4, 200);
         else if (strstr(path, "kind=rumble")) sc2_haptic_rumble_for(0x9000, 0x6000, 700);
         else                                  sc2_haptic_tick();
-        REPLY_TXT(fd, 200, "ok");
+        REPLY_TXT(fd, 200, "queued");
         return;
     }
     if (!strncmp(path, "/api/profiles", 13)) {
@@ -213,6 +219,12 @@ static void handle(int fd) {
         }
         sb_put(&s, "]");
         reply(fd, 200, "application/json", out, s.n);
+        return;
+    }
+    if (!strncmp(path, "/api/bridge", 11)) {
+        if (is_post) bridge_probe_request();
+        char out[768]; int n = bridge_probe_json(out, sizeof(out));
+        reply(fd, 200, "application/json", out, n > 0 ? (size_t)n : 0);
         return;
     }
     if (!strncmp(path, "/api/log", 8)) {

@@ -86,7 +86,7 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .c-CROSS{color:var(--cross);border-color:currentColor}.c-CIRCLE{color:var(--circle);border-color:currentColor}
 .c-SQUARE{color:var(--square);border-color:currentColor}.c-TRIANGLE{color:var(--triangle);border-color:currentColor}
 
-.opts{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0}
+.opts{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:0}
 .opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--line);min-height:54px}
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
 .seg button{border:0;border-radius:0;min-height:34px;padding:5px 10px;background:transparent;font-size:.88rem}
@@ -130,6 +130,15 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
 .pick .g-CROSS[aria-pressed=false]{color:var(--cross)}.pick .g-CIRCLE[aria-pressed=false]{color:var(--circle)}
 .pick .g-SQUARE[aria-pressed=false]{color:var(--square)}.pick .g-TRIANGLE[aria-pressed=false]{color:var(--triangle)}
 .sheet .foot{display:flex;justify-content:space-between;gap:8px}
+.acts-tabs{display:flex;gap:4px;margin:14px 0 0;flex-wrap:wrap}
+.acts-tabs button{min-height:36px;padding:6px 12px;font-size:.9rem;background:transparent;color:var(--muted)}
+.acts-tabs button[aria-selected=true]{background:var(--panel2);color:var(--text);font-weight:700;border-color:var(--line)}
+.acts-tabs button .n{display:inline-block;min-width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
+.acthelp{color:var(--muted);font-size:.9rem;margin:10px 0 0;min-height:2.6em}
+.actopts{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 14px}
+.actopts label{display:inline-flex;gap:8px;align-items:center}
+.pick .g-PB_MENU[aria-pressed=false]{color:#f5c26b}
+.tag{font-size:.75rem;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
 .toast{position:fixed;left:50%;top:76px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 16px;z-index:9;opacity:0;pointer-events:none;transition:opacity .15s}
 .toast.show{opacity:1}
 [hidden]{display:none!important}
@@ -203,6 +212,10 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       <label class="opt"><span>Invert right stick up/down</span><input type="checkbox" data-k="INVERT_RY"></label>
       <label class="opt"><span>Swap left and right sticks</span><input type="checkbox" data-k="SWAP_STICKS"></label>
       <label class="opt"><span>Stick deadzone <b id="dzv"></b></span><input type="range" min="0" max="40" data-k="DEADZONE"></label>
+      <label class="opt"><span>Shift button<br><small style="color:var(--muted)">Hold it to use each button's shift binding</small></span><select id="shiftSel" data-k="SHIFT"></select></label>
+      <label class="opt"><span>Long press time <b data-v="LONG_MS"></b></span><input type="range" min="150" max="1500" step="50" data-r="LONG_MS"></label>
+      <label class="opt"><span>Double press window <b data-v="DOUBLE_MS"></b></span><input type="range" min="100" max="800" step="25" data-r="DOUBLE_MS"></label>
+      <label class="opt"><span>Turbo speed <b data-v="TURBO_MS"></b></span><input type="range" min="20" max="300" step="10" data-r="TURBO_MS"></label>
     </div>
   </section>
 
@@ -220,21 +233,31 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
     <div class="help">
       <div class="card">
         <h2>Vibration test</h2>
-        <p id="hapNote">Checks that the controller's haptics work. Game vibration isn't passed through yet.</p>
+        <p id="hapNote">Checks the controller's haptics. If nothing happens, try each method and then send the log.</p>
+        <div class="btns" style="margin-bottom:10px">
+          <select id="hapVia" aria-label="Send method"><option value="0">Method: automatic</option><option value="1">Method 1: interrupt OUT</option><option value="2">Method 2: output report</option><option value="3">Method 3: feature report</option></select>
+        </div>
         <div class="btns">
           <button data-hap="left">Buzz left</button>
           <button data-hap="right">Buzz right</button>
           <button data-hap="rumble">Rumble</button>
         </div>
+        <p id="hapDiag" style="margin:12px 0 0;min-height:1.4em"></p>
       </div>
       <div class="card">
         <h2>Menu on the console</h2>
         <p>Switch profiles or remap a button without leaving the game. Messages appear as PS5 notifications.</p>
         <ol>
-          <li>Hold <kbd>…</kbd> for about half a second to open or close it.</li>
+          <li>Bind <b>Puckbridge menu</b> to any button or activator (for example Quick access → Long press). Press it to open or close.</li>
           <li><b>D-pad up/down</b> chooses, <b>left/right</b> changes profile, <b>A</b> selects, <b>B</b> closes.</li>
           <li>To remap: pick <b>Remap a button</b>, press the button to change, then press the button it should act as. It saves to the current game's profile.</li>
         </ol>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <h2>Game bridge check</h2>
+        <p>Game vibration and DualSense-free input need to hook into the game's controller code (the PoorDS4 method). This check runs automatically about 8 seconds after a game starts. It only reads; nothing in the game is changed.</p>
+        <div id="bridgeOut" class="rows" style="margin:0 0 12px"></div>
+        <div class="btns"><button id="bridgeRun">Check the running game now</button></div>
       </div>
       <div class="card" style="grid-column:1/-1">
         <h2>Troubleshooting log</h2>
@@ -251,9 +274,14 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetT">
   <div class="box">
     <h3 id="sheetT"></h3>
-    <p>Pressing it sends every button selected here. Pick several for a combo.</p>
+    <div class="acts-tabs" role="tablist" id="actTabs"></div>
+    <p class="acthelp" id="actHelp"></p>
     <div class="pick" id="pick"></div>
-    <div class="foot"><button id="clear" class="ghost">Do nothing</button><span class="btns"><button id="cancel" class="ghost">Cancel</button><button class="primary" id="done">Done</button></span></div>
+    <div class="actopts" id="actOpts">
+      <label><input type="checkbox" id="optTurbo"> Turbo (repeats while held)</label>
+      <label><input type="checkbox" id="optToggle"> Toggle (press on, press off)</label>
+    </div>
+    <div class="foot"><button id="clear" class="ghost">Clear this tab</button><span class="btns"><button id="cancel" class="ghost">Cancel</button><button class="primary" id="done">Done</button></span></div>
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -268,7 +296,7 @@ const GROUPS=[["Face buttons",["A","B","X","Y"]],["Shoulders and triggers",["LB"
  ["Sticks and d-pad",["L3","R3","DUP","DDOWN","DLEFT","DRIGHT"]],["System",["VIEW","MENU","STEAM","QAM"]],
  ["Back grips",["L4","L5","R4","R5"]],["Trackpad clicks",["LPAD_CLICK","RPAD_CLICK"]]];
 const BITS=["A","B","X","Y","LB","RB","LT","RT","L3","R3","DUP","DDOWN","DLEFT","DRIGHT","VIEW","MENU","STEAM","QAM","L4","L5","R4","R5","LPAD_CLICK","RPAD_CLICK"];
-const OUTS=[["CROSS","Cross"],["CIRCLE","Circle"],["SQUARE","Square"],["TRIANGLE","Triangle"],["L1","L1"],["R1","R1"],["L2","L2"],["R2","R2"],["L3","L3"],["R3","R3"],["UP","Up"],["DOWN","Down"],["LEFT","Left"],["RIGHT","Right"],["OPTIONS","Options"],["CREATE","Create"],["PS","PS"],["TOUCHPAD","Touchpad"]];
+const OUTS=[["CROSS","Cross"],["CIRCLE","Circle"],["SQUARE","Square"],["TRIANGLE","Triangle"],["L1","L1"],["R1","R1"],["L2","L2"],["R2","R2"],["L3","L3"],["R3","R3"],["UP","Up"],["DOWN","Down"],["LEFT","Left"],["RIGHT","Right"],["OPTIONS","Options"],["CREATE","Create"],["PS","PS"],["TOUCHPAD","Touchpad"],["PB_MENU","Puckbridge menu"]];
 const OUTNAME=Object.fromEntries(OUTS);
 const DEFAULTS={A:"CROSS",B:"CIRCLE",X:"SQUARE",Y:"TRIANGLE",LB:"L1",RB:"R1",LT:"L2",RT:"R2",L3:"L3",R3:"R3",DUP:"UP",DDOWN:"DOWN",DLEFT:"LEFT",DRIGHT:"RIGHT",VIEW:"CREATE",MENU:"OPTIONS",STEAM:"PS",QAM:"TOUCHPAD",L4:"L3",L5:"L1+R1",R4:"R3",R5:"L3+R3",LPAD_CLICK:"TOUCHPAD",RPAD_CLICK:"TOUCHPAD"};
 const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
@@ -328,9 +356,9 @@ function buildPad(){
     svg.appendChild(g);
   });
 }
-function showCaption(k){$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(comboText(cur[k]))}`}
+function showCaption(k){const x=extras(k);$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(comboText(cur[k]))}${x.length?` <span style="color:var(--muted)">· ${esc(x.join(" · "))}</span>`:""}`}
 function paintPad(){
-  $$(".ctl").forEach(g=>{const k=g.dataset.k;g.classList.toggle("changed",norm(cur[k])!==norm(DEFAULTS[k]));
+  $$(".ctl").forEach(g=>{const k=g.dataset.k;g.classList.toggle("changed",norm(cur[k])!==norm(DEFAULTS[k])||extras(k).length>0);
     g.querySelector("title").textContent=`${LABEL[k]} → ${comboText(cur[k])}`;g.setAttribute("aria-label",`${LABEL[k]}, does ${comboText(cur[k])}`)});
 }
 
@@ -338,34 +366,73 @@ function paintPad(){
 function renderList(){
   $("#list").innerHTML=GROUPS.map(([t,keys])=>`<div class="group"><h3>${t}</h3>${keys.map(k=>{const c=combo(cur[k]);
     return `<div class="row" tabindex="0" role="button" data-k="${k}"><span class="phys">${esc(LABEL[k])}</span><span class="chips">${
-      c.length?c.map(o=>`<span class="chip c-${o}">${esc(OUTNAME[o]||o)}</span>`).join(""):'<span class="chip none">Nothing</span>'}</span></div>`}).join("")}</div>`).join("");
+      c.length?c.map(o=>`<span class="chip c-${o}">${esc(OUTNAME[o]||o)}</span>`).join(""):'<span class="chip none">Nothing</span>'}${extras(k).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</span></div>`}).join("")}</div>`).join("");
   $$(".row").forEach(r=>{r.onclick=()=>openSheet(r.dataset.k);r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(r.dataset.k)}};r.onmouseenter=()=>showCaption(r.dataset.k)});
 }
 function renderOpts(){
   $$(".seg").forEach(seg=>{const k=seg.dataset.k;seg.innerHTML="";
     PADS.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",cur[k]===v);b.onclick=()=>{cur[k]=v;renderOpts();dirty()};seg.appendChild(b)})});
   $$("input[type=checkbox][data-k]").forEach(i=>{i.checked=cur[i.dataset.k]==="1";i.onchange=()=>{cur[i.dataset.k]=i.checked?"1":"0";dirty()}});
-  const dz=$("input[type=range]");dz.value=cur.DEADZONE||9;$("#dzv").textContent=dz.value+"%";
+  const dz=$("input[data-k=DEADZONE]");dz.value=cur.DEADZONE||9;$("#dzv").textContent=dz.value+"%";
   dz.oninput=()=>{cur.DEADZONE=dz.value;$("#dzv").textContent=dz.value+"%";dirty()};
+  const ss=$("#shiftSel");ss.innerHTML='<option value="NONE">None</option>'+BITS.map(k=>`<option value="${k}">${esc(LABEL[k])}</option>`).join("");
+  ss.value=cur.SHIFT||"NONE";ss.onchange=()=>{cur.SHIFT=ss.value;render()};
+  $$("input[data-r]").forEach(r=>{const k=r.dataset.r,def={LONG_MS:400,DOUBLE_MS:250,TURBO_MS:60}[k];
+    r.value=cur[k]||def;$(`b[data-v=${k}]`).textContent=r.value+" ms";
+    r.oninput=()=>{cur[k]=r.value;$(`b[data-v=${k}]`).textContent=r.value+" ms";dirty()}});
 }
 function render(){renderList();renderOpts();paintPad();dirty()}
 
-/* ── picker ── */
+/* ── binding editor (Steam Input-style activators) ── */
+const ACTS=[["","Press","Sends these while held. Pick several for a combo."],
+ [".long","Long press","Hold past the long-press time to send these. A quick tap still sends Press."],
+ [".double","Double press","Press twice quickly: the second press sends these."],
+ [".shift","Shift layer","Sent instead of Press while the Shift button is held."],
+ [".full","Full pull","Extra output when the trigger clicks at the end of its travel."]];
+let draft={},act="";
+function actsFor(k){return ACTS.filter(a=>a[0]!==".full"||k==="LT"||k==="RT").filter(a=>a[0]!==".shift"||cur.SHIFT&&cur.SHIFT!=="NONE"&&cur.SHIFT!==k)}
 function openSheet(k){
-  sheetKey=k;sel=new Set(combo(cur[k]));$("#sheetT").textContent=LABEL[k];
+  sheetKey=k;$("#sheetT").textContent=LABEL[k];
+  draft={};ACTS.forEach(([a])=>draft[a]=new Set(combo(cur[k+a])));
+  draft.turbo=cur[k+".turbo"]==="1";draft.toggle=cur[k+".toggle"]==="1";
   $$(".ctl").forEach(g=>g.classList.toggle("sel",g.dataset.k===k));
-  const p=$("#pick");p.innerHTML="";
-  OUTS.forEach(([v,l])=>{const b=document.createElement("button");b.className="g-"+v;b.textContent=l;b.setAttribute("aria-pressed",sel.has(v));
-    b.onclick=()=>{sel.has(v)?sel.delete(v):sel.add(v);b.setAttribute("aria-pressed",sel.has(v))};p.appendChild(b)});
-  $("#sheet").classList.add("show");p.querySelector("button").focus();
+  act="";renderActTabs();renderPick();
+  $("#sheet").classList.add("show");$("#pick button").focus();
+}
+function renderActTabs(){
+  $("#actTabs").innerHTML=actsFor(sheetKey).map(([a,l])=>`<button role="tab" data-a="${a}" aria-selected="${a===act}">${l}${a&&draft[a].size?'<span class="n"></span>':""}</button>`).join("");
+  $$("#actTabs button").forEach(b=>b.onclick=()=>{act=b.dataset.a;renderActTabs();renderPick()});
+  $("#actHelp").textContent=ACTS.find(a=>a[0]===act)[2];
+  $("#actOpts").hidden=act!=="";
+  $("#optTurbo").checked=draft.turbo;$("#optToggle").checked=draft.toggle;
+}
+$("#optTurbo").onchange=e=>{draft.turbo=e.target.checked;if(draft.turbo){draft.toggle=false;$("#optToggle").checked=false}};
+$("#optToggle").onchange=e=>{draft.toggle=e.target.checked;if(draft.toggle){draft.turbo=false;$("#optTurbo").checked=false}};
+function renderPick(){
+  const set=draft[act],p=$("#pick");p.innerHTML="";
+  OUTS.forEach(([v,l])=>{const b=document.createElement("button");b.className="g-"+v;b.textContent=l;b.setAttribute("aria-pressed",set.has(v));
+    b.onclick=()=>{set.has(v)?set.delete(v):set.add(v);b.setAttribute("aria-pressed",set.has(v));renderActTabs()};p.appendChild(b)});
 }
 function closeSheet(apply){
-  if(apply){const order=OUTS.map(o=>o[0]).filter(o=>sel.has(o));cur[sheetKey]=order.length?order.join("+"):"NONE";render();showCaption(sheetKey)}
+  if(apply){
+    const k=sheetKey,ord=s=>OUTS.map(o=>o[0]).filter(o=>s.has(o)).join("+");
+    ACTS.forEach(([a])=>{const v=ord(draft[a]);if(a==="")cur[k]=v||"NONE";else if(v)cur[k+a]=v;else delete cur[k+a]});
+    if(draft.turbo)cur[k+".turbo"]="1";else delete cur[k+".turbo"];
+    if(draft.toggle)cur[k+".toggle"]="1";else delete cur[k+".toggle"];
+    render();showCaption(k);
+  }
   $("#sheet").classList.remove("show");$$(".ctl.sel").forEach(g=>g.classList.remove("sel"));
 }
+function extras(k){const t=[];
+  if(cur[k+".long"])t.push("Long: "+comboText(cur[k+".long"]));
+  if(cur[k+".double"])t.push("Double: "+comboText(cur[k+".double"]));
+  if(cur[k+".shift"])t.push("Shift: "+comboText(cur[k+".shift"]));
+  if(cur[k+".full"])t.push("Full pull: "+comboText(cur[k+".full"]));
+  if(cur[k+".turbo"]==="1")t.push("Turbo");if(cur[k+".toggle"]==="1")t.push("Toggle");
+  if(cur.SHIFT===k)t.push("Shift button");return t}
 $("#done").onclick=()=>closeSheet(true);
 $("#cancel").onclick=()=>closeSheet(false);
-$("#clear").onclick=()=>{sel.clear();closeSheet(true)};
+$("#clear").onclick=()=>{draft[act].clear();if(act===""){draft.turbo=draft.toggle=false}renderActTabs();renderPick()};
 $("#sheet").onclick=e=>{if(e.target.id==="sheet")closeSheet(false)};
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#sheet").classList.contains("show"))closeSheet(false)});
 
@@ -452,16 +519,39 @@ async function poll(){
     status=JSON.parse(await api("/api/status"));
     $("#dot").classList.toggle("on",!!status.connected);
     $("#conn").textContent=status.connected?"Controller connected":"Controller not connected";
-    renderNow();paintLive(status.inputs>>>0);
+    renderNow();paintLive(status.inputs>>>0);paintHap();
     if($("#mode").value!==(status.override||""))$("#mode").value=status.override||"";
   }catch(e){$("#dot").classList.remove("on");$("#conn").textContent="PS5 unreachable"}
   setTimeout(poll,150);
 }
 
 /* ── help ── */
-$$("[data-hap]").forEach(b=>b.onclick=async()=>{try{await api("/api/haptic?kind="+b.dataset.hap,{method:"POST"})}catch(e){toast(e.message)}});
+$$("[data-hap]").forEach(b=>b.onclick=async()=>{try{await api("/api/haptic?kind="+b.dataset.hap+"&via="+$("#hapVia").value,{method:"POST"});toast("Sent to controller")}catch(e){toast(e.message||"Request failed")}});
+function paintHap(){const h=status.hap;if(!h){$("#hapDiag").textContent="";return}
+  const via=["–","interrupt OUT","output report","feature report"][h.via]||"–";
+  $("#hapDiag").textContent=!status.haptics?"Controller not connected to the payload.":
+   `Queued ${h.q}, sent ${h.sent}, failed ${h.fail}. Last: ${h.q?(h.err?"error "+h.err:"OK")+" via "+via:"none yet"}. OUT endpoint: ${h.out>=0?"0x"+h.out.toString(16).padStart(2,"0"):"not available"}.`}
 $("#logShow").onclick=async()=>{const p=$("#log");if(!p.hidden){p.hidden=true;$("#logShow").textContent="Show log";return}p.textContent=await api("/api/log");p.hidden=false;$("#logShow").textContent="Hide log";p.scrollTop=p.scrollHeight};
 $("#logCopy").onclick=async()=>{const t=await api("/api/log");try{await navigator.clipboard.writeText(t);toast("Log copied")}catch(e){const p=$("#log");p.textContent=t;p.hidden=false;$("#logShow").textContent="Hide log";toast("Select the log text to copy it")}};
+
+/* ── game bridge check ── */
+async function paintBridge(){
+  let b;try{b=JSON.parse(await api("/api/bridge"))}catch(e){return}
+  const g=games.find(g=>g.id===b.title),name=g?g.name:(b.title||"");
+  const row=(k,v,ok)=>`<div class="opt"><span>${k}</span><span class="badge ${ok===true?"ok":ok===false?"warn":""}">${esc(v)}</span></div>`;
+  if(!b.title||b.state===0){$("#bridgeOut").innerHTML=row("Status","Start a game to run the check",null);return}
+  if(b.state<3){$("#bridgeOut").innerHTML=row(name,b.state===1?"Waiting for the game to finish loading…":"Checking…",null);return}
+  const pass=b.result===2&&b.scan===0;
+  $("#bridgeOut").innerHTML=
+    row(name+" · "+b.title, pass?"Compatible":"Not compatible: "+b.reason, pass)+
+    row("Controller input hooks", b.read_hooks>0?`${b.read_hooks} found`:"none found", b.read_hooks>0)+
+    row("Vibration hook", b.vibration_hooks>0?"found":"not found", b.vibration_hooks>0)+
+    row("Adaptive trigger hook", b.trigger_hooks>0?"found":"not found", b.trigger_hooks>0)+
+    row("Kernel helper (kstuff remote calls)", b.remote_syscalls===1?"available":b.remote_syscalls===0?"missing":"unknown", b.remote_syscalls===1)+
+    row("Firmware", b.fw||"unknown", null);
+}
+$("#bridgeRun").onclick=async()=>{try{await api("/api/bridge",{method:"POST"});toast("Checking the running game…")}catch(e){toast(e.message)}};
+setInterval(()=>{if(!$("#tab-help").hidden)paintBridge()},1500);
 
 /* ── start ── */
 (async()=>{

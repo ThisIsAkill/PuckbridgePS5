@@ -4,6 +4,8 @@
 #include "controller_sc2.h"
 #include "sc2_profile.h"
 #include "sc2_menu.h"
+#include "sc2_binding.h"
+#include <time.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -215,29 +217,38 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     }
 #endif
 
-    /* 1b. on-console menu: hold "..." */
+    /* 1b. Puckbridge menu owns the controller while open */
     if (sc2_menu_filter(&in)) {
         o->leftStick.x = o->leftStick.y = o->rightStick.x = o->rightStick.y = 128;
         o->buttons = 0; o->connected = 1; o->quat.w = 1.0f;
+        sc2_bind_reset();
         return 1;
     }
 
-    /* 2. remap */
-    uint32_t btn = 0;
-    for (int i = 0; i < SC2_IN_COUNT; i++)
-        if (in & (1u << i)) btn |= P.map[i];
+    /* 2. Steam Input-style bindings */
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+    int64_t now = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    static uint32_t prev_act = 0;
+    uint32_t btn = sc2_bind_eval(&P, in, BIT(5,0x08), BIT(4,0x80), now);
+    uint32_t act = btn & PB_ACT_MASK;
+    if ((act & PB_ACT_MENU) && !(prev_act & PB_ACT_MENU)) sc2_menu_toggle();
+    prev_act = act;
+    btn &= ~PB_ACT_MASK;
 
-    /* 3. analog triggers follow wherever the physical trigger is mapped */
+    /* 3. analog triggers follow a plain LT/RT → L2/R2 binding; any other
+     *    source of L2/R2 (combo, long press, grip...) sends full pressure */
     uint8_t ol2 = 0, or2 = 0;
-    if (P.map[IN_LT] & SCE_PAD_BUTTON_L2) ol2 = lt > ol2 ? lt : ol2;
-    if (P.map[IN_RT] & SCE_PAD_BUTTON_L2) ol2 = rt > ol2 ? rt : ol2;
-    if (P.map[IN_LT] & SCE_PAD_BUTTON_R2) or2 = lt > or2 ? lt : or2;
-    if (P.map[IN_RT] & SCE_PAD_BUTTON_R2) or2 = rt > or2 ? rt : or2;
-    for (int i = 0; i < SC2_IN_COUNT; i++) {           /* digital sources → full */
-        if (i == IN_LT || i == IN_RT || !(in & (1u << i))) continue;
-        if (P.map[i] & SCE_PAD_BUTTON_L2) ol2 = 255;
-        if (P.map[i] & SCE_PAD_BUTTON_R2) or2 = 255;
-    }
+    int lt_plain = !P.lng[IN_LT] && !P.turbo[IN_LT] && !P.toggle[IN_LT];
+    int rt_plain = !P.lng[IN_RT] && !P.turbo[IN_RT] && !P.toggle[IN_RT];
+    if (lt_plain && (P.map[IN_LT] & SCE_PAD_BUTTON_L2)) ol2 = lt;
+    if (rt_plain && (P.map[IN_RT] & SCE_PAD_BUTTON_L2) && rt > ol2) ol2 = rt;
+    if (lt_plain && (P.map[IN_LT] & SCE_PAD_BUTTON_R2)) or2 = lt;
+    if (rt_plain && (P.map[IN_RT] & SCE_PAD_BUTTON_R2) && rt > or2) or2 = rt;
+    uint32_t other = 0;                               /* L2/R2 from non-trigger sources */
+    for (int i = 0; i < SC2_IN_COUNT; i++)
+        if (i != IN_LT && i != IN_RT && (in & (1u << i))) other |= P.map[i] | P.lng[i] | P.dbl[i] | P.shf[i];
+    if ((btn & SCE_PAD_BUTTON_L2) && ((other & SCE_PAD_BUTTON_L2) || !ol2)) ol2 = 255;
+    if ((btn & SCE_PAD_BUTTON_R2) && ((other & SCE_PAD_BUTTON_R2) || !or2)) or2 = 255;
     o->analogButtons.l2 = ol2;
     o->analogButtons.r2 = or2;
 
