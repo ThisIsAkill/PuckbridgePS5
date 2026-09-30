@@ -196,6 +196,19 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     sc2_live_inputs = in;
     sc2_live_connected = 1;
 
+    /* Edge-triggered raw dump: fires only when the decoded physical-input
+     * mask changes, so a button press/release logs the exact report bytes
+     * next to what we parsed from them. Used to verify/fix the bit table
+     * in SET(...) above against real hardware. */
+    {
+        static uint32_t last_in = 0xFFFFFFFFu;
+        if (in != last_in) {
+            LOG("sc2: raw b[0..9]=%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x  in=0x%06x\n",
+                b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], in);
+            last_in = in;
+        }
+    }
+
     /* 2. remap */
     uint32_t btn = 0;
     for (int i = 0; i < SC2_IN_COUNT; i++)

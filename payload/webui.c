@@ -2,6 +2,7 @@
 
 #include "webui.h"
 #include "sc2_profile.h"
+#include "game_list.h"
 #include "webui_html.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,6 +159,20 @@ static void handle(int fd) {
         if (get_id(path, id) < 0) { REPLY_TXT(fd, 400, "bad id"); return; }
         sc2_select_override(id);
         REPLY_TXT(fd, 200, "ok");
+        return;
+    }
+    if (!strncmp(path, "/api/games", 10)) {
+        static gc_game_t games[256];
+        int n = gc_game_list(games, 256);
+        static char out[64 * 1024]; sb_t s = { out, 0, sizeof(out) }; out[0] = 0;
+        sb_put(&s, "[");
+        for (int i = 0; i < n; i++) {
+            if (i) sb_put(&s, ",");
+            sb_put(&s, "{\"id\":"); json_str(&s, games[i].id);
+            sb_put(&s, ",\"name\":"); json_str(&s, games[i].name); sb_put(&s, "}");
+        }
+        sb_put(&s, "]");
+        reply(fd, 200, "application/json", out, s.n);
         return;
     }
     if (!strncmp(path, "/api/log", 8)) {

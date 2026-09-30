@@ -73,6 +73,10 @@ input[type=range]{width:140px;accent-color:var(--cross)}
     <button id="newGame">New profile for this game</button>
   </div>
   <div class="bar">
+    <select id="installedGames" aria-label="Installed games"><option value="">Installed games…</option></select>
+    <button id="newFromInstalled">New/open profile for selected game</button>
+  </div>
+  <div class="bar">
     <select id="mode" aria-label="Which profile is used"></select>
     <button id="del" class="danger">Delete profile</button>
   </div>
@@ -130,7 +134,7 @@ const OUTS=[["CROSS","Cross"],["CIRCLE","Circle"],["SQUARE","Square"],["TRIANGLE
 const OUTNAME=Object.fromEntries(OUTS);
 const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
 
-let cur={}, saved="", editing="default", profiles=[], status={};
+let cur={}, saved="", editing="default", profiles=[], status={}, installedGames=[];
 const $=s=>document.querySelector(s);
 
 function parse(t){const p={};t.split("\n").forEach(l=>{const i=l.indexOf("=");if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim()});return p}
@@ -208,15 +212,32 @@ $("#mode").onchange=async e=>{await api("/api/override?id="+encodeURIComponent(e
 $("#save").onclick=async()=>{try{await api("/api/profile?id="+encodeURIComponent(editing),{method:"POST",body:fmt(cur)});saved=fmt(cur);dirty();await refreshList();toast("Saved")}catch(e){toast("Couldn't save: "+e.message)}};
 $("#revert").onclick=()=>{cur=parse(saved);render()};
 $("#del").onclick=async()=>{if(editing==="default"||!confirm("Delete this profile?"))return;await api("/api/delete?id="+encodeURIComponent(editing),{method:"POST"});editing="default";saved="";await refreshList();await load("default");toast("Deleted")};
-$("#newGame").onclick=async()=>{
-  const tid=status.title;
-  if(!tid){toast("Start a game first, then try again");return}
+async function openOrCreate(tid,suggestedName){
+  if(!tid){toast("Pick a game first");return}
   if(profiles.some(p=>p.id===tid)){saved="";$("#prof").value=tid;await load(tid);toast("This game already has a profile");return}
-  const name=prompt("Name this profile",tid);if(name===null)return;
+  const name=prompt("Name this profile",suggestedName||tid);if(name===null)return;
   const p={...cur,name:name||tid};
   await api("/api/profile?id="+encodeURIComponent(tid),{method:"POST",body:fmt(p)});
   editing=tid;saved="";await refreshList();await load(tid);toast("Created from the profile you were editing");
+}
+$("#newGame").onclick=()=>openOrCreate(status.title,status.title);
+$("#newFromInstalled").onclick=()=>{
+  const tid=$("#installedGames").value;
+  const g=installedGames.find(g=>g.id===tid);
+  openOrCreate(tid,g&&g.name);
 };
+
+async function refreshGames(){
+  try{installedGames=JSON.parse(await api("/api/games"))}catch(e){installedGames=[]}
+  installedGames.sort((a,b)=>a.name.localeCompare(b.name));
+  const sel=$("#installedGames");sel.innerHTML="";
+  const def=document.createElement("option");def.value="";
+  def.textContent=installedGames.length?"Installed games…":"No installed games found";
+  sel.appendChild(def);
+  installedGames.forEach(g=>{
+    const o=document.createElement("option");o.value=g.id;o.textContent=`${g.name} · ${g.id}`;sel.appendChild(o);
+  });
+}
 
 async function getLog(){return api("/api/log")}
 $("#logShow").onclick=async()=>{const p=$("#log");if(!p.hidden){p.hidden=true;$("#logShow").textContent="Show";return}p.textContent=await getLog();p.hidden=false;$("#logShow").textContent="Hide";p.scrollTop=p.scrollHeight};
@@ -239,7 +260,7 @@ async function poll(){
   }catch(e){$("#dot").classList.remove("on");$("#stat").textContent="Can't reach the PS5. Is the payload running?"}
   setTimeout(poll,150);
 }
-(async()=>{try{try{status=JSON.parse(await api("/api/status"))}catch(e){}editing=status.active||"default";await refreshList();await load(editing)}catch(e){$("#stat").textContent="Can't reach the PS5. Is the payload running?"}poll()})();
+(async()=>{try{try{status=JSON.parse(await api("/api/status"))}catch(e){}editing=status.active||"default";await refreshList();await refreshGames();await load(editing)}catch(e){$("#stat").textContent="Can't reach the PS5. Is the payload running?"}poll()})();
 </script>
 </body>
 </html>
