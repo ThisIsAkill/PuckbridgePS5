@@ -268,7 +268,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       <div class="card" style="grid-column:1/-1">
         <h2>Troubleshooting log</h2>
         <p>Include this when reporting a problem.</p>
-        <div class="btns"><button id="logShow">Show log</button><button id="logCopy">Copy log</button></div>
+        <div class="btns"><button id="logShow">Show log</button><button id="logCopy">Copy log</button><button id="logPrev">Copy previous run's log</button></div>
         <pre class="log" id="log" hidden></pre>
       </div>
     </div>
@@ -538,6 +538,7 @@ function paintHap(){const h=status.hap;if(!h){$("#hapDiag").textContent="";retur
   $("#hapDiag").textContent=!status.haptics?"Controller not connected to the payload.":
    `Queued ${h.q}, sent ${h.sent}, failed ${h.fail}. Last: ${h.q?(h.err?"error "+h.err:"OK")+" via "+via:"none yet"}. OUT endpoint: ${h.out>=0?"0x"+h.out.toString(16).padStart(2,"0"):"not available"}.`}
 $("#logShow").onclick=async()=>{const p=$("#log");if(!p.hidden){p.hidden=true;$("#logShow").textContent="Show log";return}p.textContent=await api("/api/log");p.hidden=false;$("#logShow").textContent="Hide log";p.scrollTop=p.scrollHeight};
+$("#logPrev").onclick=async()=>{const t=await api("/api/log?prev=1");try{await navigator.clipboard.writeText(t);toast("Previous run's log copied")}catch(e){const p=$("#log");p.textContent=t;p.hidden=false;$("#logShow").textContent="Hide log";toast("Select the log text to copy it")}};
 $("#logCopy").onclick=async()=>{const t=await api("/api/log");try{await navigator.clipboard.writeText(t);toast("Log copied")}catch(e){const p=$("#log");p.textContent=t;p.hidden=false;$("#logShow").textContent="Hide log";toast("Select the log text to copy it")}};
 
 /* ── in-game hooks ── */

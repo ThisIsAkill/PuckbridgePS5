@@ -241,7 +241,7 @@ static void handle(int fd) {
     if (!strncmp(path, "/api/log", 8)) {
         static char out[48 * 1024];
         size_t n = 0;
-        FILE *f = fopen("/data/ghostpad/gc_status.log", "r");
+        FILE *f = fopen(strstr(path, "prev=1") ? "/data/ghostpad/gc_status.log.prev" : "/data/ghostpad/gc_status.log", "r");
         if (f) {
             fseek(f, 0, SEEK_END);
             long sz = ftell(f);

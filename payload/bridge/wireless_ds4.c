@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -914,6 +915,11 @@ _Static_assert(sizeof(GamePadBridgeArgs) == 5968,
                "GamePadBridgeArgs ABI changed");
 
 static pid_t g_game_bridge_direct_pid = -1;
+/* PuckbridgePS5: the paging cache below is shared by every thread that reads or
+ * writes game memory (compatibility check, in-game hooks). One thread clearing
+ * it mid-write would send the write to a garbage physical address. All public
+ * entry points take this lock. */
+static pthread_mutex_t g_pb_bridge_lock = PTHREAD_MUTEX_INITIALIZER;
 static intptr_t g_game_bridge_direct_args = 0;
 static uint32_t g_game_bridge_direct_seq = 0;
 static uint32_t g_game_bridge_direct_packets = 0;
@@ -5602,8 +5608,11 @@ wireless_ds4_game_bridge_install(
     const PoorDS4PadSource *source, pid_t *out_game_pid,
     intptr_t *out_args_kaddr)
 {
-    return wireless_ds4_game_bridge_run_passive(
+    pthread_mutex_lock(&g_pb_bridge_lock);
+    int r = wireless_ds4_game_bridge_run_passive(
         source, out_game_pid, out_args_kaddr);
+    pthread_mutex_unlock(&g_pb_bridge_lock);
+    return r;
 }
 
 int
@@ -6691,6 +6700,7 @@ game_cache_find_table(
 
 #define PB_MAGIC       0x42505550u   /* "PUPB" */
 #define PB_MAX_HOOKS   16u
+#define PB_LAYOUT_VERSION 2u         /* bump whenever PbArgs changes */
 #define PB_PAD_SIZE    120u
 #define PB_STALE_READS 60u           /* reads without a new frame before merge stops */
 
@@ -6861,8 +6871,8 @@ static const struct { unsigned kind; uintptr_t stub; int rcx; } k_pb_hooks[] = {
 };
 #define PB_N_KINDS (sizeof(k_pb_hooks) / sizeof(k_pb_hooks[0]))
 
-int
-pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_args,
+static int
+pb_hooks_install_locked(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_args,
                  char *why, size_t why_n)
 {
 #if !defined(__PROSPERO__)
@@ -6890,9 +6900,43 @@ pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_ar
     uint32_t hook_count = 0;
     memset(hooks, 0, sizeof(hooks));
     g_gb_kind_limit = GB_KINDS;
-    int scan = game_bridge_collect_import_hooks(target, base, originals, hooks, &hook_count, -1, 0, 0);
+    /* allow_nonoriginal=1: also list slots that already point elsewhere, so
+     * hooks left by an earlier Puckbridge run can be found and reused. */
+    int scan = game_bridge_collect_import_hooks(target, base, originals, hooks, &hook_count, -1, 1, 0);
     g_gb_kind_limit = 7u;
     if (scan != 0) { snprintf(why, why_n, "import scan failed (game still loading?)"); return -4; }
+
+    /* Earlier Puckbridge hooks still in this game? (A new payload kills the
+     * old one without unhooking.) Re-use its shared page instead of stacking. */
+    for (uint32_t i = 0; i < hook_count; i++) {
+        uint64_t cur = 0; uint8_t gwb[16];
+        if (game_bridge_process_read(target, hooks[i].slot, &cur, sizeof(cur)) != 0) continue;
+        if (cur == (uint64_t)hooks[i].original) continue;
+        if (game_bridge_process_read(target, (intptr_t)cur, gwb, sizeof(gwb)) != 0) continue;
+        if (gwb[0] != 0x48 || gwb[1] != 0x8d || (gwb[2] != 0x15 && gwb[2] != 0x0d) || gwb[7] != 0xe9) continue;
+        int32_t rel; memcpy(&rel, gwb + 3, 4);
+        intptr_t old_args = (intptr_t)cur + 7 + rel;
+        uint32_t hdr[2] = {0, 0};
+        if (game_bridge_process_read(target, old_args, hdr, sizeof(hdr)) == 0 && hdr[0] == PB_MAGIC) {
+            if (hdr[1] != PB_LAYOUT_VERSION) {
+                snprintf(why, why_n, "hooked by an older Puckbridge build: restart the game");
+                return -14;
+            }
+            *out_args = old_args;
+            snprintf(why, why_n, "re-using hooks from an earlier Puckbridge run");
+            return 1;
+        }
+    }
+    /* keep only untouched slots from here on; never stack on someone else's hook */
+    {
+        uint32_t k = 0;
+        for (uint32_t i = 0; i < hook_count; i++) {
+            uint64_t cur = 0;
+            if (game_bridge_process_read(target, hooks[i].slot, &cur, sizeof(cur)) == 0 &&
+                cur == (uint64_t)hooks[i].original) hooks[k++] = hooks[i];
+        }
+        hook_count = k;
+    }
 
     /* pick the slots we redirect */
     GameBridgeImportHook sel[PB_MAX_HOOKS];
@@ -6934,7 +6978,7 @@ pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_ar
     if (poords4_remote_syscall(target, SYS_mprotect, prot_args) != 0) { snprintf(why, why_n, "mprotect failed"); return -11; }
 
     PbArgs a; memset(&a, 0, sizeof(a));
-    a.magic = PB_MAGIC; a.version = 1;
+    a.magic = PB_MAGIC; a.version = PB_LAYOUT_VERSION;
     for (unsigned k = 0; k < GB_KINDS; k++) a.orig[k] = (uint64_t)(originals[k] > 0 ? originals[k] : 0);
     a.in_enabled = 0; a.in_handle = -1; a.in_age = PB_STALE_READS + 1; a.in_mode = 1; a.in_owner = 0;
     a.hook_count = ns;
@@ -6970,8 +7014,8 @@ rollback:
 #endif
 }
 
-int
-pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf, int enabled,
+static int
+pb_hooks_publish_locked(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf, int enabled,
                  int mode, int owner)
 {
 #if !defined(__PROSPERO__)
@@ -6997,8 +7041,8 @@ pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf, int en
 #endif
 }
 
-int
-pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st)
+static int
+pb_hooks_read_locked(pid_t pid, intptr_t args_addr, PbStatus *st)
 {
 #if !defined(__PROSPERO__)
     (void)pid; (void)args_addr; (void)st; return -1;
@@ -7012,8 +7056,8 @@ pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st)
 #endif
 }
 
-int
-pb_hooks_remove(pid_t pid, intptr_t args_addr)
+static int
+pb_hooks_remove_locked(pid_t pid, intptr_t args_addr)
 {
 #if !defined(__PROSPERO__)
     (void)pid; (void)args_addr; return -1;
@@ -7030,4 +7074,36 @@ pb_hooks_remove(pid_t pid, intptr_t args_addr)
     }
     return bad ? -2 : 0;
 #endif
+}
+
+
+/* Locked public wrappers (see g_pb_bridge_lock) */
+int pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_args,
+                     char *why, size_t why_n)
+{
+    pthread_mutex_lock(&g_pb_bridge_lock);
+    int r = pb_hooks_install_locked(want_input, want_vibe, out_pid, out_args, why, why_n);
+    pthread_mutex_unlock(&g_pb_bridge_lock);
+    return r;
+}
+int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled, int mode, int owner)
+{
+    pthread_mutex_lock(&g_pb_bridge_lock);
+    int r = pb_hooks_publish_locked(pid, args_addr, f, enabled, mode, owner);
+    pthread_mutex_unlock(&g_pb_bridge_lock);
+    return r;
+}
+int pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st)
+{
+    pthread_mutex_lock(&g_pb_bridge_lock);
+    int r = pb_hooks_read_locked(pid, args_addr, st);
+    pthread_mutex_unlock(&g_pb_bridge_lock);
+    return r;
+}
+int pb_hooks_remove(pid_t pid, intptr_t args_addr)
+{
+    pthread_mutex_lock(&g_pb_bridge_lock);
+    int r = pb_hooks_remove_locked(pid, args_addr);
+    pthread_mutex_unlock(&g_pb_bridge_lock);
+    return r;
 }

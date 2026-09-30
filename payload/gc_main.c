@@ -66,6 +66,7 @@ void ghostpad_status_log_reset(void) {
     pthread_mutex_lock(&g_log_lock);
     if (g_log_fd >= 0) { close(g_log_fd); g_log_fd = -1; }
     mkdir(LOG_DIR, 0755);
+    rename(LOG_PATH, LOG_PATH ".prev");      /* keep the previous run (e.g. after a crash) */
     g_log_fd = open(LOG_PATH, O_WRONLY|O_CREAT|O_TRUNC, 0600);
     pthread_mutex_unlock(&g_log_lock);
 }
