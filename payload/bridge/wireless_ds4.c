@@ -6717,7 +6717,10 @@ typedef struct {
     volatile uint32_t in_enabled;
     volatile uint32_t in_idx;
     volatile uint32_t in_age;
-    volatile int32_t  in_handle;      /* -1 = merge into any handle */
+    volatile uint32_t in_mode;        /* 0 merge both, 1 last used wins, 2 Steam Controller only */
+    volatile uint32_t in_owner;       /* mode 1: 1 = Steam Controller owns the player */
+    volatile int32_t  in_handle;      /* -1 = any handle */
+    volatile uint32_t native_act;     /* bumped when the native pad is being used */
     PbFrame frame[2];
     volatile uint64_t in_calls, in_merged;
     /* restore info */
@@ -6729,23 +6732,52 @@ typedef struct {
 
 extern void pb_stub_end(void);
 
+static __attribute__((always_inline)) inline int
+pb_native_active(const uint8_t *d)
+{
+    uint32_t b; __builtin_memcpy(&b, d, 4);
+    if (b & 0x001FFFFFu) return 1;                     /* any button (incl. touchpad) */
+    for (int i = 4; i < 8; i++) if (d[i] < 128 - 40 || d[i] > 128 + 40) return 1;
+    if (d[8] > 40 || d[9] > 40) return 1;
+    return d[52] != 0;                                 /* finger on the touchpad */
+}
+
 static __attribute__((always_inline)) inline void
 pb_merge(PbArgs *a, uint8_t *d)
 {
     uint32_t age = __atomic_add_fetch(&a->in_age, 1u, __ATOMIC_RELAXED);
     if (!a->in_enabled || age > PB_STALE_READS) return;
+    if (pb_native_active(d)) __atomic_add_fetch(&a->native_act, 1u, __ATOMIC_RELAXED);
     const PbFrame *f = &a->frame[a->in_idx & 1u];
-    uint32_t b; __builtin_memcpy(&b, d, 4); b |= f->buttons; __builtin_memcpy(d, &b, 4);
-    if (f->move_l) { d[4] = f->lx; d[5] = f->ly; }
-    if (f->move_r) { d[6] = f->rx; d[7] = f->ry; }
-    if (f->l2 > d[8]) d[8] = f->l2;
-    if (f->r2 > d[9]) d[9] = f->r2;
-    if (f->fingers) {                       /* touchData at 52: fingers, touch[i] at 60 + 8i */
+    uint32_t mode = a->in_mode;
+    if (mode == 2 || (mode == 1 && a->in_owner == 1)) {
+        /* Steam Controller owns the player: replace the native input */
+        uint32_t keep; __builtin_memcpy(&keep, d, 4);
+        uint32_t b = f->buttons;
+        __builtin_memcpy(d, &b, 4);
+        d[4] = f->lx; d[5] = f->ly; d[6] = f->rx; d[7] = f->ry;
+        d[8] = f->l2; d[9] = f->r2;
         d[52] = f->fingers;
         for (int i = 0; i < 2; i++) {
             uint8_t *t = d + 60 + 8 * i;
             __builtin_memcpy(t, &f->tx[i], 2); __builtin_memcpy(t + 2, &f->ty[i], 2); t[4] = f->tid[i];
         }
+        (void)keep;
+    } else if (mode == 0) {
+        uint32_t b; __builtin_memcpy(&b, d, 4); b |= f->buttons; __builtin_memcpy(d, &b, 4);
+        if (f->move_l) { d[4] = f->lx; d[5] = f->ly; }
+        if (f->move_r) { d[6] = f->rx; d[7] = f->ry; }
+        if (f->l2 > d[8]) d[8] = f->l2;
+        if (f->r2 > d[9]) d[9] = f->r2;
+        if (f->fingers) {
+            d[52] = f->fingers;
+            for (int i = 0; i < 2; i++) {
+                uint8_t *t = d + 60 + 8 * i;
+                __builtin_memcpy(t, &f->tx[i], 2); __builtin_memcpy(t + 2, &f->ty[i], 2); t[4] = f->tid[i];
+            }
+        }
+    } else {
+        return;                                          /* native pad owns the player */
     }
     __atomic_add_fetch(&a->in_merged, 1u, __ATOMIC_RELAXED);
 }
@@ -6803,12 +6835,18 @@ __attribute__((noinline, used, section(".text.pbhooks")))
 int32_t pb_set_vibration_stub(int32_t handle, const uint8_t *param, PbArgs *a)
 {
     typedef int32_t (*fn)(int32_t, const uint8_t *);
+    uint8_t quiet[2] = { 0, 0 };
+    const uint8_t *pass = param;
     if (param && a->magic == PB_MAGIC) {
         a->vhandle = handle; a->vlarge = param[0]; a->vsmall = param[1];
         __atomic_add_fetch(&a->vseq, 1u, __ATOMIC_RELEASE);
+        /* Steam Controller owns the player: keep the native pad still */
+        if (a->in_enabled && a->in_age <= PB_STALE_READS &&
+            (a->in_mode == 2 || (a->in_mode == 1 && a->in_owner == 1)))
+            pass = quiet;
     }
     __atomic_add_fetch(&a->vcalls, 1u, __ATOMIC_RELAXED);
-    return ((fn)(uintptr_t)a->orig[7])(handle, param);
+    return ((fn)(uintptr_t)a->orig[7])(handle, pass);
 }
 __attribute__((noinline, used, section(".text.pbhooks")))
 void pb_stub_end(void) {}
@@ -6898,7 +6936,7 @@ pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_ar
     PbArgs a; memset(&a, 0, sizeof(a));
     a.magic = PB_MAGIC; a.version = 1;
     for (unsigned k = 0; k < GB_KINDS; k++) a.orig[k] = (uint64_t)(originals[k] > 0 ? originals[k] : 0);
-    a.in_enabled = 0; a.in_handle = -1; a.in_age = PB_STALE_READS + 1;
+    a.in_enabled = 0; a.in_handle = -1; a.in_age = PB_STALE_READS + 1; a.in_mode = 1; a.in_owner = 0;
     a.hook_count = ns;
     for (uint32_t i = 0; i < ns; i++) {
         a.hook_slot[i] = (uint64_t)sel[i].slot; a.hook_orig[i] = (uint64_t)sel[i].original;
@@ -6933,7 +6971,8 @@ rollback:
 }
 
 int
-pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf, int enabled)
+pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf, int enabled,
+                 int mode, int owner)
 {
 #if !defined(__PROSPERO__)
     (void)pid; (void)args_addr; (void)pf; (void)enabled; return -1;
@@ -6950,7 +6989,8 @@ pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf, int en
     intptr_t base = args_addr;
     if (game_bridge_process_write(pid, base + (intptr_t)offsetof(PbArgs, frame) + (intptr_t)(next * sizeof(PbFrame)),
                                   &f, sizeof(f)) != 0) return -1;
-    struct { uint32_t en, idx, age; } hdr = { enabled ? 1u : 0u, next, 0u };
+    struct { uint32_t en, idx, age, mode, owner; } hdr =
+        { enabled ? 1u : 0u, next, 0u, (uint32_t)mode, owner ? 1u : 0u };
     if (game_bridge_process_write(pid, base + (intptr_t)offsetof(PbArgs, in_enabled), &hdr, sizeof(hdr)) != 0) return -1;
     idx = next;
     return 0;
@@ -6967,6 +7007,7 @@ pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st)
     if (game_bridge_process_read(pid, args_addr, &a, sizeof(a)) != 0 || a.magic != PB_MAGIC) return -1;
     st->vseq = a.vseq; st->vlarge = a.vlarge; st->vsmall = a.vsmall; st->vhandle = a.vhandle;
     st->vcalls = a.vcalls; st->in_calls = a.in_calls; st->in_merged = a.in_merged;
+    st->native_act = a.native_act;
     return 0;
 #endif
 }

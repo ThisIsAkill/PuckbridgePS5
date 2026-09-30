@@ -7,5 +7,5 @@
 void game_hooks_start(void);
 void game_hooks_feed(const ScePadData *pad, int connected);   /* from the SC2 thread */
 int  game_hooks_input_active(void);    /* hooks installed and merging input */
-void game_hooks_set(int input_on, int vibe_on);
+void game_hooks_set(int input_on, int vibe_on, int mode);   /* -1 = unchanged */
 int  game_hooks_json(char *out, size_t n);

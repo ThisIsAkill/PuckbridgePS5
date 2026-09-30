@@ -17,7 +17,8 @@ void ghostpad_status_log(const char *fmt, ...);
 #define SETTINGS "/data/ghostpad/settings.ini"
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
-static volatile int g_input_on = 1, g_vibe_on = 1;
+static volatile int g_input_on = 1, g_vibe_on = 1, g_mode = 1;   /* mode: 0 both, 1 last used, 2 SC2 only */
+static volatile int g_owner = 0;
 static ScePadData g_pad; static volatile int g_pad_conn = 0; static volatile uint32_t g_pad_seq = 0;
 static volatile int g_active = 0;
 static struct {
@@ -39,12 +40,13 @@ static void load_settings(void) {
     while (fgets(l, sizeof(l), f)) {
         if (!strncmp(l, "GAME_INPUT=", 11))     g_input_on = atoi(l + 11) != 0;
         if (!strncmp(l, "GAME_VIBRATION=", 15)) g_vibe_on  = atoi(l + 15) != 0;
+        if (!strncmp(l, "GAME_PRIORITY=", 14))  { int m = atoi(l + 14); g_mode = (m >= 0 && m <= 2) ? m : 1; }
     }
     fclose(f);
 }
 static void save_settings(void) {
     FILE *f = fopen(SETTINGS, "w"); if (!f) return;
-    fprintf(f, "GAME_INPUT=%d\nGAME_VIBRATION=%d\n", g_input_on ? 1 : 0, g_vibe_on ? 1 : 0);
+    fprintf(f, "GAME_INPUT=%d\nGAME_VIBRATION=%d\nGAME_PRIORITY=%d\n", g_input_on ? 1 : 0, g_vibe_on ? 1 : 0, g_mode);
     fclose(f);
 }
 static void set_state(int st, const char *why) {
@@ -62,6 +64,13 @@ void game_hooks_feed(const ScePadData *pad, int connected) {
 }
 
 int game_hooks_input_active(void) { return g_active; }
+
+static int sc2_in_use(const ScePadData *p) {
+    if (p->buttons) return 1;
+    int v[4] = { p->leftStick.x, p->leftStick.y, p->rightStick.x, p->rightStick.y };
+    for (int i = 0; i < 4; i++) if (v[i] < 128 - 40 || v[i] > 128 + 40) return 1;
+    return p->analogButtons.l2 > 40 || p->analogButtons.r2 > 40 || p->touchData.fingers;
+}
 
 static void to_frame(const ScePadData *p, PbPublishFrame *f) {
     memset(f, 0, sizeof(*f));
@@ -91,7 +100,7 @@ static void *hooks_thread(void *arg) {
     char cur[SC2_ID_MAX + 1] = "";
     int64_t title_since = 0, next_try = 0, next_stat = 0;
     int tries = 0, rumbling = 0;
-    uint32_t last_vseq = 0, last_pad_seq = 0;
+    uint32_t last_vseq = 0, last_pad_seq = 0, last_native_act = 0;
     int last_in = -1, last_vib = -1;
 
     for (;;) {
@@ -150,24 +159,42 @@ static void *hooks_thread(void *arg) {
             continue;
         }
 
-        /* input: publish the newest Steam Controller frame (~125 Hz) */
-        if (want_in) {
-            ScePadData p; int conn; uint32_t seq;
-            pthread_mutex_lock(&g_lock); p = g_pad; conn = g_pad_conn; seq = g_pad_seq; pthread_mutex_unlock(&g_lock);
-            if (seq != last_pad_seq || now >= next_stat) {
-                last_pad_seq = seq;
-                PbPublishFrame f; to_frame(&p, &f);
-                pb_hooks_publish(g.pid, g.args, &f, conn);
+        PbStatus st; int have_st = pb_hooks_read(g.pid, g.args, &st) == 0;
+
+        /* who owns the player: whichever controller was used last */
+        ScePadData p; int conn; uint32_t seq;
+        pthread_mutex_lock(&g_lock); p = g_pad; conn = g_pad_conn; seq = g_pad_seq; pthread_mutex_unlock(&g_lock);
+        int prev_owner = g_owner;
+        if (g_mode == 2) g_owner = 1;
+        else if (g_mode == 0) g_owner = 0;
+        else {
+            if (conn && sc2_in_use(&p)) g_owner = 1;
+            else if (have_st && st.native_act != last_native_act) g_owner = 0;
+            if (!conn) g_owner = 0;
+        }
+        if (have_st) last_native_act = st.native_act;
+        if (g_owner != prev_owner) {
+            LOG("game hooks: %s now controls the player\n", g_owner ? "Steam Controller" : "DualSense");
+            if (!g_owner && rumbling) { sc2_haptic_rumble_set(0, 0); rumbling = 0; }
+            if (g_owner && want_vib && have_st && sc2_haptic_available) {       /* pick up current rumble */
+                sc2_haptic_rumble_set((uint16_t)(st.vlarge << 8), (uint16_t)(st.vsmall << 8));
+                rumbling = st.vlarge || st.vsmall;
             }
         }
 
-        /* vibration + stats (~every 8 ms / 500 ms) */
-        PbStatus st;
-        if ((want_vib || now >= next_stat) && pb_hooks_read(g.pid, g.args, &st) == 0) {
+        /* input: publish the newest Steam Controller frame (~125 Hz) */
+        if (want_in && (seq != last_pad_seq || g_owner != prev_owner || now >= next_stat)) {
+            last_pad_seq = seq;
+            PbPublishFrame f; to_frame(&p, &f);
+            pb_hooks_publish(g.pid, g.args, &f, conn, g_mode, g_owner);
+        }
+
+        /* vibration: only to the controller that owns the player (both in mode 0) */
+        if (have_st) {
             if (want_vib && st.vseq != last_vseq) {
                 if (!last_vseq) LOG("game hooks: first vibration from %s (handle 0x%08x)\n", cur, (uint32_t)st.vhandle);
                 last_vseq = st.vseq;
-                if (sc2_haptic_available) {
+                if (sc2_haptic_available && (g_owner || g_mode == 0)) {
                     sc2_haptic_rumble_set((uint16_t)(st.vlarge << 8), (uint16_t)(st.vsmall << 8));
                     rumbling = st.vlarge || st.vsmall;
                 }
@@ -187,9 +214,10 @@ void game_hooks_start(void) {
     if (pthread_create(&th, NULL, hooks_thread, NULL) == 0) pthread_detach(th);
 }
 
-void game_hooks_set(int input_on, int vibe_on) {
+void game_hooks_set(int input_on, int vibe_on, int mode) {
     if (input_on >= 0) g_input_on = input_on ? 1 : 0;
     if (vibe_on  >= 0) g_vibe_on  = vibe_on ? 1 : 0;
+    if (mode >= 0 && mode <= 2) g_mode = mode;
     save_settings();
     LOG("game hooks: input %s, vibration %s\n", g_input_on ? "on" : "off", g_vibe_on ? "on" : "off");
 }
@@ -197,9 +225,9 @@ void game_hooks_set(int input_on, int vibe_on) {
 int game_hooks_json(char *out, size_t n) {
     pthread_mutex_lock(&g_lock);
     int w = snprintf(out, n,
-        "{\"input\":%d,\"vibration\":%d,\"title\":\"%s\",\"state\":%d,\"reads\":%llu,\"merged\":%llu,"
+        "{\"mode\":%d,\"owner\":%d,\"input\":%d,\"vibration\":%d,\"title\":\"%s\",\"state\":%d,\"reads\":%llu,\"merged\":%llu,"
         "\"vcalls\":%llu,\"large\":%u,\"small\":%u,\"why\":\"",
-        g_input_on, g_vibe_on, g.title, g.state, (unsigned long long)g.st.in_calls,
+        g_mode, g_owner, g_input_on, g_vibe_on, g.title, g.state, (unsigned long long)g.st.in_calls,
         (unsigned long long)g.st.in_merged, (unsigned long long)g.st.vcalls, g.st.vlarge, g.st.vsmall);
     for (const char *p = g.why; *p && w > 0 && (size_t)w < n - 4; p++)
         if (*p != '"' && *p != '\\' && (unsigned char)*p >= 0x20) out[w++] = *p;

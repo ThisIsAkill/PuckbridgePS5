@@ -215,9 +215,11 @@ typedef struct {
 typedef struct {
     uint32_t vseq; uint8_t vlarge, vsmall; int32_t vhandle;
     uint64_t vcalls, in_calls, in_merged;
+    uint32_t native_act;
 } PbStatus;
 int pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_args,
                      char *why, size_t why_n);
-int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled);
+int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled,
+                     int mode, int owner);   /* mode: 0 both, 1 last used, 2 Steam Controller only */
 int pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st);
 int pb_hooks_remove(pid_t pid, intptr_t args_addr);

@@ -225,7 +225,8 @@ static void handle(int fd) {
     if (!strncmp(path, "/api/gamehooks", 14)) {
         if (is_post) {
             const char *i = strstr(path, "input="), *v = strstr(path, "vibration=");
-            game_hooks_set(i ? i[6] == '1' : -1, v ? v[10] == '1' : -1);
+            const char *m = strstr(path, "mode=");
+            game_hooks_set(i ? i[6] == '1' : -1, v ? v[10] == '1' : -1, m ? m[5] - '0' : -1);
         }
         char out[512]; int n = game_hooks_json(out, sizeof(out));
         reply(fd, 200, "application/json", out, n > 0 ? (size_t)n : 0);
