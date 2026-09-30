@@ -3499,9 +3499,9 @@ game_bridge_make_gateway(uint8_t gateway[16], intptr_t gateway_address,
                          int args_in_rcx)
 {
     memset(gateway, 0x90, 16);
-    gateway[0] = 0x48;
+    gateway[0] = args_in_rcx == 2 ? 0x4c : 0x48;   /* PuckbridgePS5: 2 = r11 (REX.R) */
     gateway[1] = 0x8d;
-    gateway[2] = args_in_rcx ? 0x0d : 0x15; /* lea rcx/rdx,[rip+disp32] */
+    gateway[2] = args_in_rcx == 2 ? 0x1d : (args_in_rcx ? 0x0d : 0x15); /* lea r11/rcx/rdx,[rip+disp32] */
     int64_t args_delta =
         (int64_t)args_address - (int64_t)(gateway_address + 7);
     int64_t stub_delta =
@@ -3760,7 +3760,7 @@ _Static_assert(offsetof(GameBridgeDynlibSectionPrefix, symtab) == 0x28,
 _Static_assert(offsetof(GameBridgeDynlibSectionPrefix, plt_rela) == 0x48,
                "rtld PLT relocation offset changed");
 
-#define GB_KINDS 9u            /* 7 read/info kinds + SetVibration + SetTriggerEffect */
+#define GB_KINDS 14u           /* 7 read/info kinds + SetVibration + SetTriggerEffect + 5 audio (PuckbridgePS5) */
 static unsigned g_gb_kind_limit = 7u;   /* 9 only while probing */
 int poords4_probe_only = 0;
 static int game_bridge_collect_import_hooks(
@@ -3965,7 +3965,9 @@ game_bridge_dump_modules_report(
             "scePadReadExt", "scePadGetDataInternal",
             "scePadGetControllerInformation",
             "scePadGetExtControllerInformation",
-            "scePadSetVibration", "scePadSetTriggerEffect"};
+            "scePadSetVibration", "scePadSetTriggerEffect",
+            "sceAudioOutOpen", "sceAudioOutOutput", "sceAudioOutOutputs",
+            "sceAudioOut2PortCreate", "sceAudioOut2PortSetAttributes"};
         MOD_PRINT("\n--------------------------------------------------------------------------------\n");
         MOD_PRINT("Hooked Imports (%u hooks found):\n", hook_count);
         MOD_PRINT("--------------------------------------------------------------------------------\n");
@@ -4012,7 +4014,9 @@ game_bridge_collect_import_hooks(
         "scePadReadExt", "scePadGetDataInternal",
         "scePadGetControllerInformation",
         "scePadGetExtControllerInformation",
-        "scePadSetVibration", "scePadSetTriggerEffect"};
+        "scePadSetVibration", "scePadSetTriggerEffect",
+        "sceAudioOutOpen", "sceAudioOutOutput", "sceAudioOutOutputs",
+        "sceAudioOut2PortCreate", "sceAudioOut2PortSetAttributes"};
     for (unsigned kind = 0; kind < GB_KINDS; ++kind) {
         memset(nids[kind], 0, sizeof(nids[kind]));
         nid_encode(names[kind], nids[kind]);
@@ -6700,7 +6704,10 @@ game_cache_find_table(
 
 #define PB_MAGIC       0x42505550u   /* "PUPB" */
 #define PB_MAX_HOOKS   16u
-#define PB_LAYOUT_VERSION 2u         /* bump whenever PbArgs changes */
+#define PB_LAYOUT_VERSION 3u         /* bump whenever PbArgs changes */
+#define PB_MAX_PORTS   24u
+#define PB_ZERO_BYTES  32768u
+_Static_assert(GB_KINDS <= 16u, "PbArgs.orig too small");
 #define PB_PAD_SIZE    120u
 #define PB_STALE_READS 60u           /* reads without a new frame before merge stops */
 
@@ -6716,7 +6723,7 @@ typedef struct {
 
 typedef struct {
     uint32_t magic, version;
-    uint64_t orig[9];                 /* export addresses, by kind */
+    uint64_t orig[16];                /* export addresses, by kind (GB_KINDS <= 16) */
     /* vibration (game → payload) */
     volatile uint32_t vseq;
     volatile int32_t  vhandle;
@@ -6733,11 +6740,23 @@ typedef struct {
     volatile uint32_t native_act;     /* bumped when the native pad is being used */
     PbFrame frame[2];
     volatile uint64_t in_calls, in_merged;
+    /* audio (PS5 pad speaker + haptics ports) */
+    volatile uint32_t a_silence;      /* 1: send the DualSense silence on its pad ports */
+    volatile uint32_t aseq;           /* bumped per haptics block */
+    volatile uint8_t  hap_l, hap_r, spk_level, r2;
+    volatile uint32_t a_ports;
+    volatile uint64_t a_calls, a_muted;
+    struct {
+        uint64_t handle;
+        uint8_t  kind, fmt, ch, api;  /* kind 1 = haptics, 2 = pad speaker; fmt 0 s16, 1 float; api 1/2 */
+        uint32_t len;
+    } port[PB_MAX_PORTS];
     /* restore info */
     uint32_t hook_count, r1;
     uint64_t hook_slot[PB_MAX_HOOKS];
     uint64_t hook_orig[PB_MAX_HOOKS];
     uint32_t hook_prot[PB_MAX_HOOKS];
+    uint8_t  zero[PB_ZERO_BYTES];     /* silence handed to Sony instead of the game's buffer */
 } PbArgs;
 
 extern void pb_stub_end(void);
@@ -6858,6 +6877,183 @@ int32_t pb_set_vibration_stub(int32_t handle, const uint8_t *param, PbArgs *a)
     __atomic_add_fetch(&a->vcalls, 1u, __ATOMIC_RELAXED);
     return ((fn)(uintptr_t)a->orig[7])(handle, pass);
 }
+/* ── audio ports ───────────────────────────────────────────────────── */
+static __attribute__((always_inline)) inline int
+pb_owner_is_sc2(PbArgs *a)
+{
+    return a->in_enabled && a->in_age <= PB_STALE_READS &&
+           (a->in_mode == 2 || (a->in_mode == 1 && a->in_owner == 1));
+}
+
+static __attribute__((always_inline)) inline int
+pb_port_find(PbArgs *a, uint64_t handle)
+{
+    uint32_t n = a->a_ports; if (n > PB_MAX_PORTS) n = PB_MAX_PORTS;
+    for (uint32_t i = 0; i < n; i++) if (a->port[i].handle == handle && a->port[i].kind) return (int)i;
+    return -1;
+}
+
+static __attribute__((always_inline)) inline void
+pb_port_add(PbArgs *a, uint64_t handle, uint8_t kind, uint8_t fmt, uint8_t ch, uint8_t api, uint32_t len)
+{
+    uint32_t i = __atomic_fetch_add(&a->a_ports, 1u, __ATOMIC_RELAXED);
+    if (i >= PB_MAX_PORTS) return;
+    a->port[i].handle = handle; a->port[i].fmt = fmt; a->port[i].ch = ch ? ch : 1;
+    a->port[i].api = api; a->port[i].len = len;
+    __atomic_store_n(&a->port[i].kind, kind, __ATOMIC_RELEASE);
+}
+
+/* peak of the first frames, left/right actuator (0-255) */
+static __attribute__((always_inline)) inline void
+pb_peak(PbArgs *a, int pi, const uint8_t *buf)
+{
+    uint32_t frames = a->port[pi].len ? a->port[pi].len : 128u;
+    if (frames > 128u) frames = 128u;
+    uint32_t ch = a->port[pi].ch, fmt = a->port[pi].fmt;
+    uint32_t pl = 0, pr = 0;
+    for (uint32_t f = 0; f < frames; f++) {
+        for (uint32_t c = 0; c < 2u && c < ch; c++) {
+            uint32_t v;
+            if (fmt) {
+                /* float → 0..255 with integer ops only: stubs run inside the game
+                 * and must not load constants from this payload's data section */
+                uint32_t u; __builtin_memcpy(&u, buf + (f * ch + c) * 4u, 4);
+                u &= 0x7fffffffu;
+                if (u >= 0x3f800000u) v = 255u;                 /* |x| >= 1.0 (or NaN/inf) */
+                else {
+                    int32_t e = (int32_t)(u >> 23) - 127;       /* < 0 here */
+                    int32_t sh = 23 - e;
+                    uint32_t mant = (u & 0x7fffffu) | 0x800000u;
+                    v = (sh >= 32 || (u >> 23) == 0) ? 0u : (mant * 255u) >> sh;
+                }
+            } else {
+                int16_t x; __builtin_memcpy(&x, buf + (f * ch + c) * 2u, 2);
+                int32_t y = x < 0 ? -(int32_t)x : x;
+                v = (uint32_t)(y >> 7); if (v > 255u) v = 255u;
+            }
+            if (c == 0) { if (v > pl) pl = v; } else { if (v > pr) pr = v; }
+        }
+    }
+    if (ch < 2u) pr = pl;
+    if (a->port[pi].kind == 1) {
+        a->hap_l = (uint8_t)pl; a->hap_r = (uint8_t)pr;
+        __atomic_add_fetch(&a->aseq, 1u, __ATOMIC_RELEASE);
+    } else {
+        a->spk_level = (uint8_t)(pl > pr ? pl : pr);
+    }
+}
+
+/* sceAudioOutOpen(user, type, index, len, freq, param): 6 args, args pointer in r11 */
+__attribute__((noinline, used, section(".text.pbhooks")))
+int32_t pb_audio_open_stub(int32_t user, int32_t type, int32_t index, uint32_t len, uint32_t freq, uint32_t param)
+{
+    PbArgs *a;
+    __asm__ volatile("mov %%r11, %0" : "=r"(a));
+    typedef int32_t (*fn)(int32_t, int32_t, int32_t, uint32_t, uint32_t, uint32_t);
+    int32_t h = ((fn)(uintptr_t)a->orig[9])(user, type, index, len, freq, param);
+    if (h >= 0 && (type == 10 || type == 4)) {
+        uint32_t f = param & 0xffu;                          /* 0/1/2/6 s16, 3/4/5/7 float */
+        uint8_t fl = (f == 3 || f == 4 || f == 5 || f == 7);
+        uint8_t ch = (f == 0 || f == 3) ? 1 : (f == 1 || f == 4) ? 2 : 8;
+        pb_port_add(a, (uint64_t)(uint32_t)h, type == 10 ? 1 : 2, fl, ch, 1, len);
+    }
+    return h;
+}
+
+/* sceAudioOutOutput(handle, ptr) */
+__attribute__((noinline, used, section(".text.pbhooks")))
+int32_t pb_audio_output_stub(int32_t handle, const void *ptr, PbArgs *a)
+{
+    typedef int32_t (*fn)(int32_t, const void *);
+    const void *pass = ptr;
+    int pi = (a->a_ports && ptr) ? pb_port_find(a, (uint64_t)(uint32_t)handle) : -1;
+    if (pi >= 0) {
+        __atomic_add_fetch(&a->a_calls, 1u, __ATOMIC_RELAXED);
+        pb_peak(a, pi, (const uint8_t *)ptr);
+        if (a->a_silence && pb_owner_is_sc2(a)) {
+            uint32_t bytes = a->port[pi].len * a->port[pi].ch * (a->port[pi].fmt ? 4u : 2u);
+            if (bytes && bytes <= PB_ZERO_BYTES) { pass = a->zero; __atomic_add_fetch(&a->a_muted, 1u, __ATOMIC_RELAXED); }
+        }
+    }
+    return ((fn)(uintptr_t)a->orig[10])(handle, pass);
+}
+
+/* sceAudioOutOutputs(params[{int handle; const void *ptr}], num) */
+__attribute__((noinline, used, section(".text.pbhooks")))
+int32_t pb_audio_outputs_stub(uint8_t *params, uint32_t num, PbArgs *a)
+{
+    typedef int32_t (*fn)(uint8_t *, uint32_t);
+    uint8_t local[16 * 16];
+    uint8_t *pass = params;
+    if (params && num && num <= 16u && a->a_ports) {
+        int changed = 0;
+        for (uint32_t i = 0; i < num; i++) {
+            int32_t h; const void *ptr;
+            __builtin_memcpy(&h, params + i * 16u, 4); __builtin_memcpy(&ptr, params + i * 16u + 8u, 8);
+            __builtin_memcpy(local + i * 16u, params + i * 16u, 16);
+            int pi = ptr ? pb_port_find(a, (uint64_t)(uint32_t)h) : -1;
+            if (pi < 0) continue;
+            __atomic_add_fetch(&a->a_calls, 1u, __ATOMIC_RELAXED);
+            pb_peak(a, pi, (const uint8_t *)ptr);
+            if (a->a_silence && pb_owner_is_sc2(a)) {
+                uint32_t bytes = a->port[pi].len * a->port[pi].ch * (a->port[pi].fmt ? 4u : 2u);
+                if (bytes && bytes <= PB_ZERO_BYTES) {
+                    const void *z = a->zero; __builtin_memcpy(local + i * 16u + 8u, &z, 8);
+                    changed = 1; __atomic_add_fetch(&a->a_muted, 1u, __ATOMIC_RELAXED);
+                }
+            }
+        }
+        if (changed) pass = local;
+    }
+    return ((fn)(uintptr_t)a->orig[11])(pass, num);
+}
+
+/* sceAudioOut2PortCreate(ctx, params, *port) */
+__attribute__((noinline, used, section(".text.pbhooks")))
+int32_t pb_audio2_create_stub(uint64_t ctx, const uint8_t *params, uint64_t *port, PbArgs *a)
+{
+    typedef int32_t (*fn)(uint64_t, const uint8_t *, uint64_t *);
+    int32_t r = ((fn)(uintptr_t)a->orig[12])(ctx, params, port);
+    if (r == 0 && params && port) {
+        uint16_t pt; uint32_t df; __builtin_memcpy(&pt, params, 2); __builtin_memcpy(&df, params + 4, 4);
+        uint8_t t = (uint8_t)(pt & 0xffu);
+        if ((pt & 0xff00u) == 0 && (t == 6 || t == 3)) {
+            uint8_t ch = (uint8_t)((df >> 8) & 0xffu);
+            pb_port_add(a, *port, t == 6 ? 1 : 2, (df & 0x7fu) == 0 ? 1 : 0, ch ? ch : 2, 2, 0);
+        }
+    }
+    return r;
+}
+
+/* sceAudioOut2PortSetAttributes(port, attrs[{u32 id; i32 r; const void *value; size_t size}], num) */
+__attribute__((noinline, used, section(".text.pbhooks")))
+int32_t pb_audio2_setattr_stub(uint64_t port, const uint8_t *attrs, uint32_t num, PbArgs *a)
+{
+    typedef int32_t (*fn)(uint64_t, const uint8_t *, uint32_t);
+    uint8_t local[8 * 24];
+    const void *zero_pcm = a->zero;       /* AudioOut2Pcm { const void *data; } */
+    const uint8_t *pass = attrs;
+    int pi = (a->a_ports && attrs && num && num <= 8u) ? pb_port_find(a, port) : -1;
+    if (pi >= 0) {
+        for (uint32_t i = 0; i < num; i++) {
+            uint32_t id; const void *val; uint64_t sz;
+            __builtin_memcpy(&id, attrs + i * 24u, 4); __builtin_memcpy(&val, attrs + i * 24u + 8u, 8);
+            __builtin_memcpy(&sz, attrs + i * 24u + 16u, 8);
+            __builtin_memcpy(local + i * 24u, attrs + i * 24u, 24);
+            if (id != 0 || !val || sz < 8) continue;
+            const void *pcm; __builtin_memcpy(&pcm, val, 8);
+            if (!pcm) continue;
+            __atomic_add_fetch(&a->a_calls, 1u, __ATOMIC_RELAXED);
+            pb_peak(a, pi, (const uint8_t *)pcm);
+            if (a->a_silence && pb_owner_is_sc2(a)) {
+                const void *zp = &zero_pcm; __builtin_memcpy(local + i * 24u + 8u, &zp, 8);
+                pass = local; __atomic_add_fetch(&a->a_muted, 1u, __ATOMIC_RELAXED);
+            }
+        }
+    }
+    return ((fn)(uintptr_t)a->orig[13])(port, pass, num);
+}
+
 __attribute__((noinline, used, section(".text.pbhooks")))
 void pb_stub_end(void) {}
 
@@ -6868,15 +7064,20 @@ static const struct { unsigned kind; uintptr_t stub; int rcx; } k_pb_hooks[] = {
     { 2, (uintptr_t)pb_read_stub,           1 },
     { 3, (uintptr_t)pb_read_ext_stub,       1 },
     { 7, (uintptr_t)pb_set_vibration_stub,  0 },
+    { 9,  (uintptr_t)pb_audio_open_stub,     2 },   /* r11 */
+    { 10, (uintptr_t)pb_audio_output_stub,   0 },
+    { 11, (uintptr_t)pb_audio_outputs_stub,  0 },
+    { 12, (uintptr_t)pb_audio2_create_stub,  1 },
+    { 13, (uintptr_t)pb_audio2_setattr_stub, 1 },
 };
 #define PB_N_KINDS (sizeof(k_pb_hooks) / sizeof(k_pb_hooks[0]))
 
 static int
-pb_hooks_install_locked(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_args,
+pb_hooks_install_locked(int want_input, int want_vibe, int want_audio, pid_t *out_pid, intptr_t *out_args,
                  char *why, size_t why_n)
 {
 #if !defined(__PROSPERO__)
-    (void)want_input; (void)want_vibe; (void)out_pid; (void)out_args; snprintf(why, why_n, "not PS5"); return -1;
+    (void)want_input; (void)want_vibe; (void)want_audio; (void)out_pid; (void)out_args; snprintf(why, why_n, "not PS5"); return -1;
 #else
     pid_t pids[8];
     *out_pid = -1; *out_args = 0; why[0] = 0;
@@ -6891,9 +7092,15 @@ pb_hooks_install_locked(int want_input, int want_vibe, pid_t *out_pid, intptr_t 
     static const char *const nm[GB_KINDS] = {
         "scePadReadState", "scePadReadStateExt", "scePadRead", "scePadReadExt",
         "scePadGetDataInternal", "scePadGetControllerInformation",
-        "scePadGetExtControllerInformation", "scePadSetVibration", "scePadSetTriggerEffect"};
+        "scePadGetExtControllerInformation", "scePadSetVibration", "scePadSetTriggerEffect",
+        "sceAudioOutOpen", "sceAudioOutOutput", "sceAudioOutOutputs",
+        "sceAudioOut2PortCreate", "sceAudioOut2PortSetAttributes"};
     intptr_t originals[GB_KINDS];
-    for (unsigned k = 0; k < GB_KINDS; k++) originals[k] = resolve_sym(target, libpad, nm[k]);
+    uint32_t libaudio = 0;
+    int have_audio = want_audio && get_lib_quiet(target, "libSceAudioOut", &libaudio) == 0;
+    for (unsigned k = 0; k < GB_KINDS; k++)
+        originals[k] = k < 9 ? resolve_sym(target, libpad, nm[k])
+                             : (have_audio ? resolve_sym(target, libaudio, nm[k]) : 0);
     if (!poords4_kekcall_available()) { snprintf(why, why_n, "kstuff remote calls unavailable"); return -6; }
 
     GameBridgeImportHook hooks[POORDS4_GAME_BRIDGE_MAX_IMPORT_HOOKS];
@@ -6940,12 +7147,13 @@ pb_hooks_install_locked(int want_input, int want_vibe, pid_t *out_pid, intptr_t 
 
     /* pick the slots we redirect */
     GameBridgeImportHook sel[PB_MAX_HOOKS];
-    uint32_t ns = 0, n_in = 0, n_vib = 0;
+    uint32_t ns = 0, n_in = 0, n_vib = 0, n_aud = 0;
     for (uint32_t i = 0; i < hook_count && ns < PB_MAX_HOOKS; i++) {
         unsigned k = hooks[i].kind;
-        int is_in = (k <= 3), is_vib = (k == 7);
-        if ((is_in && want_input && originals[k] > 0) || (is_vib && want_vibe && originals[k] > 0)) {
-            sel[ns++] = hooks[i]; n_in += is_in; n_vib += is_vib;
+        int is_in = (k <= 3), is_vib = (k == 7), is_aud = (k >= 9 && k <= 13);
+        if (originals[k] <= 0) continue;
+        if ((is_in && want_input) || (is_vib && want_vibe) || (is_aud && want_audio)) {
+            sel[ns++] = hooks[i]; n_in += is_in; n_vib += is_vib; n_aud += is_aud;
         }
     }
     if (ns == 0) { snprintf(why, why_n, "no matching pad imports in this game"); return -7; }
@@ -6977,7 +7185,7 @@ pb_hooks_install_locked(int want_input, int want_vibe, pid_t *out_pid, intptr_t 
     uint64_t prot_args[6] = { (uint64_t)code, (uint64_t)code_map, PROT_READ | PROT_EXEC, 0, 0, 0 };
     if (poords4_remote_syscall(target, SYS_mprotect, prot_args) != 0) { snprintf(why, why_n, "mprotect failed"); return -11; }
 
-    PbArgs a; memset(&a, 0, sizeof(a));
+    static PbArgs a; memset(&a, 0, sizeof(a));   /* ~33 KB: static, installs are serialized */
     a.magic = PB_MAGIC; a.version = PB_LAYOUT_VERSION;
     for (unsigned k = 0; k < GB_KINDS; k++) a.orig[k] = (uint64_t)(originals[k] > 0 ? originals[k] : 0);
     a.in_enabled = 0; a.in_handle = -1; a.in_age = PB_STALE_READS + 1; a.in_mode = 1; a.in_owner = 0;
@@ -7000,7 +7208,7 @@ pb_hooks_install_locked(int want_input, int want_vibe, pid_t *out_pid, intptr_t 
         patched++;
     }
     *out_args = args_addr;
-    snprintf(why, why_n, "hooked %u input + %u vibration import slot(s)", n_in, n_vib);
+    snprintf(why, why_n, "hooked %u input, %u vibration, %u audio import slot(s)", n_in, n_vib, n_aud);
     return 1;
 
 rollback:
@@ -7016,10 +7224,10 @@ rollback:
 
 static int
 pb_hooks_publish_locked(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf, int enabled,
-                 int mode, int owner)
+                 int mode, int owner, int silence)
 {
 #if !defined(__PROSPERO__)
-    (void)pid; (void)args_addr; (void)pf; (void)enabled; return -1;
+    (void)pid; (void)args_addr; (void)pf; (void)enabled; (void)mode; (void)owner; (void)silence; return -1;
 #else
     static uint32_t idx = 0;
     PbFrame f; memset(&f, 0, sizeof(f));
@@ -7036,6 +7244,8 @@ pb_hooks_publish_locked(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf,
     struct { uint32_t en, idx, age, mode, owner; } hdr =
         { enabled ? 1u : 0u, next, 0u, (uint32_t)mode, owner ? 1u : 0u };
     if (game_bridge_process_write(pid, base + (intptr_t)offsetof(PbArgs, in_enabled), &hdr, sizeof(hdr)) != 0) return -1;
+    uint32_t sil = silence ? 1u : 0u;
+    (void)game_bridge_process_write(pid, base + (intptr_t)offsetof(PbArgs, a_silence), &sil, sizeof(sil));
     idx = next;
     return 0;
 #endif
@@ -7047,11 +7257,18 @@ pb_hooks_read_locked(pid_t pid, intptr_t args_addr, PbStatus *st)
 #if !defined(__PROSPERO__)
     (void)pid; (void)args_addr; (void)st; return -1;
 #else
-    PbArgs a;
-    if (game_bridge_process_read(pid, args_addr, &a, sizeof(a)) != 0 || a.magic != PB_MAGIC) return -1;
+    static PbArgs a;   /* only the header part is read (not the silence buffer) */
+    if (game_bridge_process_read(pid, args_addr, &a, offsetof(PbArgs, zero)) != 0 || a.magic != PB_MAGIC) return -1;
     st->vseq = a.vseq; st->vlarge = a.vlarge; st->vsmall = a.vsmall; st->vhandle = a.vhandle;
     st->vcalls = a.vcalls; st->in_calls = a.in_calls; st->in_merged = a.in_merged;
     st->native_act = a.native_act;
+    st->aseq = a.aseq; st->hap_l = a.hap_l; st->hap_r = a.hap_r; st->spk = a.spk_level;
+    st->a_calls = a.a_calls; st->a_muted = a.a_muted;
+    st->n_hap = st->n_spk = 0;
+    for (uint32_t i = 0; i < a.a_ports && i < PB_MAX_PORTS; i++) {
+        if (a.port[i].kind == 1) st->n_hap++;
+        else if (a.port[i].kind == 2) st->n_spk++;
+    }
     return 0;
 #endif
 }
@@ -7062,8 +7279,8 @@ pb_hooks_remove_locked(pid_t pid, intptr_t args_addr)
 #if !defined(__PROSPERO__)
     (void)pid; (void)args_addr; return -1;
 #else
-    PbArgs a;
-    if (game_bridge_process_read(pid, args_addr, &a, sizeof(a)) != 0 || a.magic != PB_MAGIC) return -1;
+    static PbArgs a;   /* only the header part is read (not the silence buffer) */
+    if (game_bridge_process_read(pid, args_addr, &a, offsetof(PbArgs, zero)) != 0 || a.magic != PB_MAGIC) return -1;
     uint32_t off = 0;                     /* stop merging first */
     (void)game_bridge_process_write(pid, args_addr + (intptr_t)offsetof(PbArgs, in_enabled), &off, sizeof(off));
     int bad = 0;
@@ -7078,18 +7295,18 @@ pb_hooks_remove_locked(pid_t pid, intptr_t args_addr)
 
 
 /* Locked public wrappers (see g_pb_bridge_lock) */
-int pb_hooks_install(int want_input, int want_vibe, pid_t *out_pid, intptr_t *out_args,
+int pb_hooks_install(int want_input, int want_vibe, int want_audio, pid_t *out_pid, intptr_t *out_args,
                      char *why, size_t why_n)
 {
     pthread_mutex_lock(&g_pb_bridge_lock);
-    int r = pb_hooks_install_locked(want_input, want_vibe, out_pid, out_args, why, why_n);
+    int r = pb_hooks_install_locked(want_input, want_vibe, want_audio, out_pid, out_args, why, why_n);
     pthread_mutex_unlock(&g_pb_bridge_lock);
     return r;
 }
-int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled, int mode, int owner)
+int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled, int mode, int owner, int silence)
 {
     pthread_mutex_lock(&g_pb_bridge_lock);
-    int r = pb_hooks_publish_locked(pid, args_addr, f, enabled, mode, owner);
+    int r = pb_hooks_publish_locked(pid, args_addr, f, enabled, mode, owner, silence);
     pthread_mutex_unlock(&g_pb_bridge_lock);
     return r;
 }

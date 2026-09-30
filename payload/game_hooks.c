@@ -17,7 +17,7 @@ void ghostpad_status_log(const char *fmt, ...);
 #define SETTINGS "/data/ghostpad/settings.ini"
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
-static volatile int g_input_on = 1, g_vibe_on = 1, g_mode = 1;   /* mode: 0 both, 1 last used, 2 SC2 only */
+static volatile int g_input_on = 1, g_vibe_on = 1, g_mode = 1, g_audio_on = 1;   /* mode: 0 both, 1 last used, 2 SC2 only */
 static volatile int g_owner = 0;
 static ScePadData g_pad; static volatile int g_pad_conn = 0; static volatile uint32_t g_pad_seq = 0;
 static volatile int g_active = 0;
@@ -40,13 +40,15 @@ static void load_settings(void) {
     while (fgets(l, sizeof(l), f)) {
         if (!strncmp(l, "GAME_INPUT=", 11))     g_input_on = atoi(l + 11) != 0;
         if (!strncmp(l, "GAME_VIBRATION=", 15)) g_vibe_on  = atoi(l + 15) != 0;
+        if (!strncmp(l, "GAME_AUDIO_HAPTICS=", 19)) g_audio_on = atoi(l + 19) != 0;
         if (!strncmp(l, "GAME_PRIORITY=", 14))  { int m = atoi(l + 14); g_mode = (m >= 0 && m <= 2) ? m : 1; }
     }
     fclose(f);
 }
 static void save_settings(void) {
     FILE *f = fopen(SETTINGS, "w"); if (!f) return;
-    fprintf(f, "GAME_INPUT=%d\nGAME_VIBRATION=%d\nGAME_PRIORITY=%d\n", g_input_on ? 1 : 0, g_vibe_on ? 1 : 0, g_mode);
+    fprintf(f, "GAME_INPUT=%d\nGAME_VIBRATION=%d\nGAME_PRIORITY=%d\nGAME_AUDIO_HAPTICS=%d\n",
+            g_input_on ? 1 : 0, g_vibe_on ? 1 : 0, g_mode, g_audio_on ? 1 : 0);
     fclose(f);
 }
 static void set_state(int st, const char *why) {
@@ -100,7 +102,8 @@ static void *hooks_thread(void *arg) {
     char cur[SC2_ID_MAX + 1] = "";
     int64_t title_since = 0, next_try = 0, next_stat = 0;
     int tries = 0, rumbling = 0;
-    uint32_t last_vseq = 0, last_pad_seq = 0, last_native_act = 0;
+    uint32_t last_vseq = 0, last_pad_seq = 0, last_native_act = 0, last_aseq = 0;
+    int64_t last_hap_ms = 0;
     int last_in = -1, last_vib = -1;
 
     for (;;) {
@@ -131,12 +134,13 @@ static void *hooks_thread(void *arg) {
 
         if (g.state != 2) {
             if (g.state == 3 && tries >= 12) { usleep(250000); continue; }
-            if (now - title_since < 10000 || now < next_try) {
+            if (tries >= 40) { set_state(3, "gave up: game never finished loading its pad library"); tries = 12; continue; }
+            if (now - title_since < 1500 || now < next_try) {
                 if (g.state != 1) set_state(1, "waiting for the game to finish loading");
                 usleep(100000); continue;
             }
             pid_t pid; intptr_t args; char why[96];
-            int r = pb_hooks_install(want_in, want_vib, &pid, &args, why, sizeof(why));
+            int r = pb_hooks_install(want_in, want_vib, g_audio_on, &pid, &args, why, sizeof(why));
             tries++;
             LOG("game hooks: install on %s (input=%d vibration=%d) → %d (%s)\n", cur, want_in, want_vib, r, why);
             if (r == 1) {
@@ -147,7 +151,7 @@ static void *hooks_thread(void *arg) {
                 g_active = want_in;
             } else {
                 set_state(r == -4 ? 1 : 3, why);
-                next_try = now + 5000;
+                next_try = now + (r == -4 ? 1000 : 5000);
             }
             continue;
         }
@@ -186,7 +190,21 @@ static void *hooks_thread(void *arg) {
         if (want_in && (seq != last_pad_seq || g_owner != prev_owner || now >= next_stat)) {
             last_pad_seq = seq;
             PbPublishFrame f; to_frame(&p, &f);
-            pb_hooks_publish(g.pid, g.args, &f, conn, g_mode, g_owner);
+            pb_hooks_publish(g.pid, g.args, &f, conn, g_mode, g_owner, g_audio_on);
+        }
+
+        /* audio haptics (PS5 games): actuator levels → Steam Controller rumble */
+        if (have_st && g_audio_on && st.aseq != last_aseq) {
+            last_aseq = st.aseq; last_hap_ms = now;
+            if (sc2_haptic_available && (g_owner || g_mode == 0)) {
+                /* voice-coil levels are small; scale up so light effects are felt */
+                uint32_t l = st.hap_l * 3u, r = st.hap_r * 3u;
+                if (l > 255) l = 255; if (r > 255) r = 255;
+                sc2_haptic_rumble_set((uint16_t)(l << 8), (uint16_t)(r << 8));
+                rumbling = (l || r);
+            }
+        } else if (rumbling && g_audio_on && last_hap_ms && now - last_hap_ms > 120) {
+            sc2_haptic_rumble_set(0, 0); rumbling = 0; last_hap_ms = 0;
         }
 
         /* vibration: only to the controller that owns the player (both in mode 0) */
@@ -214,6 +232,11 @@ void game_hooks_start(void) {
     if (pthread_create(&th, NULL, hooks_thread, NULL) == 0) pthread_detach(th);
 }
 
+void game_hooks_set_audio(int on) {
+    g_audio_on = on ? 1 : 0; save_settings();
+    LOG("game hooks: DualSense audio haptics/speaker handling %s\n", on ? "on" : "off");
+}
+
 void game_hooks_set(int input_on, int vibe_on, int mode) {
     if (input_on >= 0) g_input_on = input_on ? 1 : 0;
     if (vibe_on  >= 0) g_vibe_on  = vibe_on ? 1 : 0;
@@ -225,8 +248,11 @@ void game_hooks_set(int input_on, int vibe_on, int mode) {
 int game_hooks_json(char *out, size_t n) {
     pthread_mutex_lock(&g_lock);
     int w = snprintf(out, n,
-        "{\"mode\":%d,\"owner\":%d,\"input\":%d,\"vibration\":%d,\"title\":\"%s\",\"state\":%d,\"reads\":%llu,\"merged\":%llu,"
+        "{\"audio\":%d,\"hap_ports\":%u,\"spk_ports\":%u,\"a_calls\":%llu,\"a_muted\":%llu,\"hap_l\":%u,\"hap_r\":%u,"
+        "\"mode\":%d,\"owner\":%d,\"input\":%d,\"vibration\":%d,\"title\":\"%s\",\"state\":%d,\"reads\":%llu,\"merged\":%llu,"
         "\"vcalls\":%llu,\"large\":%u,\"small\":%u,\"why\":\"",
+        g_audio_on, g.st.n_hap, g.st.n_spk, (unsigned long long)g.st.a_calls, (unsigned long long)g.st.a_muted,
+        g.st.hap_l, g.st.hap_r,
         g_mode, g_owner, g_input_on, g_vibe_on, g.title, g.state, (unsigned long long)g.st.in_calls,
         (unsigned long long)g.st.in_merged, (unsigned long long)g.st.vcalls, g.st.vlarge, g.st.vsmall);
     for (const char *p = g.why; *p && w > 0 && (size_t)w < n - 4; p++)

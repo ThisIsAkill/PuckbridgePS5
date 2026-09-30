@@ -235,6 +235,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <h2>In games</h2>
         <label class="opt" style="padding:8px 0;border:0"><span><b>Use the Steam Controller in games</b><br><small style="color:var(--muted)">Merges it into your player's controller, so it works alongside the DualSense.</small></span><input type="checkbox" id="ghIn"></label>
         <label class="opt" style="padding:8px 0;border:0"><span><b>Send game vibration to the Steam Controller</b><br><small style="color:var(--muted)">Goes to whichever controller is in control.</small></span><input type="checkbox" id="ghVib"></label>
+        <label class="opt" style="padding:8px 0;border:0"><span><b>Move DualSense haptics and speaker</b><br><small style="color:var(--muted)">PS5 games: haptics become Steam Controller rumble, and the DualSense speaker is muted while the Steam Controller is in control. Hooks attach as the game starts, so restart the game after changing this.</small></span><input type="checkbox" id="ghAud"></label>
         <label class="opt" style="padding:8px 0;border:0"><span><b>When the DualSense is also on</b></span>
           <select id="ghMode"><option value="1">The one you touched last controls the game</option><option value="2">Only the Steam Controller</option><option value="0">Both at once</option></select></label>
         <p id="ghStatus" style="min-height:2.8em;margin:4px 0 18px">&nbsp;</p>
@@ -544,18 +545,21 @@ $("#logCopy").onclick=async()=>{const t=await api("/api/log");try{await navigato
 /* ── in-game hooks ── */
 async function paintHooks(){
   let v;try{v=JSON.parse(await api("/api/gamehooks"))}catch(e){return}
-  $("#ghIn").checked=!!v.input;$("#ghVib").checked=!!v.vibration;
+  $("#ghIn").checked=!!v.input;$("#ghVib").checked=!!v.vibration;$("#ghAud").checked=!!v.audio;
   if(document.activeElement!==$("#ghMode"))$("#ghMode").value=String(v.mode);
   const who=v.mode===0?"Both controllers are active.":(v.owner?"Steam Controller in control.":"DualSense in control.");
   const g=games.find(g=>g.id===v.title),name=g?g.name:v.title;
   $("#ghStatus").textContent=(!v.input&&!v.vibration)?"Off.":!v.title?"Start a game. Hooks attach about 10 seconds after it launches.":
-    v.state===2?`Active in ${name}. ${who} Vibration updates: ${v.vcalls}${v.vcalls?` (last: low ${v.large}, high ${v.small})`:""}.`:
+    v.state===2?`Active in ${name}. ${who} Vibration updates: ${v.vcalls}. `+
+      (v.audio?(v.hap_ports||v.spk_ports?`Haptics ports: ${v.hap_ports}, speaker ports: ${v.spk_ports}, audio blocks: ${v.a_calls} (muted ${v.a_muted}). Haptics level: ${v.hap_l}/${v.hap_r}.`
+        :"No DualSense haptics/speaker ports seen yet. If the game was already running when the payload loaded, restart the game."):""):
     v.state===3?`Couldn't hook ${name}: ${v.why}.`:`Waiting for ${name}… ${v.why||""}`;
 }
 async function setHooks(q){try{await api("/api/gamehooks?"+q,{method:"POST"});paintHooks()}catch(e){toast(e.message)}}
 $("#ghIn").onchange=e=>setHooks("input="+(e.target.checked?1:0));
 $("#ghVib").onchange=e=>setHooks("vibration="+(e.target.checked?1:0));
 $("#ghMode").onchange=e=>setHooks("mode="+e.target.value);
+$("#ghAud").onchange=e=>{setHooks("audio="+(e.target.checked?1:0));toast("Restart the game for this to take effect")};
 setInterval(()=>{if(!$("#tab-help").hidden)paintHooks()},1000);
 
 /* ── game bridge check ── */

@@ -225,6 +225,8 @@ static void handle(int fd) {
     if (!strncmp(path, "/api/gamehooks", 14)) {
         if (is_post) {
             const char *i = strstr(path, "input="), *v = strstr(path, "vibration=");
+            const char *au = strstr(path, "audio=");
+            if (au) game_hooks_set_audio(au[6] == '1');
             const char *m = strstr(path, "mode=");
             game_hooks_set(i ? i[6] == '1' : -1, v ? v[10] == '1' : -1, m ? m[5] - '0' : -1);
         }
