@@ -28,7 +28,7 @@
 #define PID_SC2_WIRED  0x1302u
 #define PID_SC2_PUCK   0x1304u
 
-#define SC2_MAX_EPS    4
+#define SC2_MAX_EPS    8
 
 /* List interrupt-IN endpoint addresses of the controller interfaces.
  * Returns count found (0 on descriptor read failure). */

@@ -294,6 +294,44 @@ static int ugen_already_logged(const char *path) {
     return 0;
 }
 
+/* Read VID:PID. The PS5 kernel rejects USB_GET_DEVICEINFO (ENOTTY), so try
+ * three routes: DEVICEINFO, the standard device descriptor ioctl, and a raw
+ * GET_DESCRIPTOR control request. Logs which one worked (once per path). */
+static int ugen_err_logged(const char *path, int code);
+static int get_vid_pid(int fd, const char *path, uint16_t *vid, uint16_t *pid) {
+    struct usb_device_info di; memset(&di,0,sizeof(di));
+    if (ioctl(fd,USB_GET_DEVICEINFO,&di) == 0) {
+        *vid = di.udi_vendorNo; *pid = di.udi_productNo; return 1;
+    }
+    int e1 = errno;
+
+    struct usb_device_descriptor dd; memset(&dd,0,sizeof(dd));
+    if (ioctl(fd,USB_GET_DEVICE_DESC,&dd) == 0 && dd.bLength >= 12) {
+        *vid = UGETW(dd.idVendor); *pid = UGETW(dd.idProduct); return 2;
+    }
+    int e2 = errno;
+
+    uint8_t raw[18]; memset(raw,0,sizeof(raw));
+    struct usb_ctl_request req; memset(&req,0,sizeof(req));
+    req.ucr_data = raw;
+    req.ucr_request.bmRequestType = 0x80;          /* device-to-host, standard, device */
+    req.ucr_request.bRequest      = 0x06;          /* GET_DESCRIPTOR */
+    USETW(req.ucr_request.wValue,  0x0100);        /* DEVICE descriptor */
+    USETW(req.ucr_request.wIndex,  0);
+    USETW(req.ucr_request.wLength, sizeof(raw));
+    if (ioctl(fd,USB_DO_REQUEST,&req) == 0 && raw[1] == 0x01) {
+        *vid = (uint16_t)(raw[8]  | (raw[9]  << 8));
+        *pid = (uint16_t)(raw[10] | (raw[11] << 8));
+        return 3;
+    }
+    int e3 = errno;
+
+    if (!ugen_err_logged(path, 2000 + e1 * 100 + e2 * 10 + e3))
+        gp_log("probe: %s no VID/PID (deviceinfo errno=%d, device_desc errno=%d, ctrl_req errno=%d)\n",
+               path, e1, e2, e3);
+    return 0;
+}
+
 /* Probe one /dev/ugen* path to identify controller type.
  * Returns 1 with vid/pid set, 0 if not a known controller.
  *
@@ -311,24 +349,23 @@ static int probe_one_path(const char *path, uint16_t *out_vid, uint16_t *out_pid
         return 0;
     }
 
-    struct usb_device_info di; memset(&di,0,sizeof(di));
-    int have_di = (ioctl(fd,USB_GET_DEVICEINFO,&di) == 0);
-    if (!have_di && !ugen_err_logged(path, 1000 + errno))
-        gp_log("probe: %s GET_DEVICEINFO failed errno=%d\n", path, errno);
+    uint16_t vid = 0, pid = 0;
+    int how = get_vid_pid(fd, path, &vid, &pid);
+    int have_di = how != 0;
 
     if (have_di && !ugen_already_logged(path)) {
-        gp_log("probe: %s VID=%04x PID=%04x product=\"%s\"\n",
-               path, di.udi_vendorNo, di.udi_productNo, di.udi_product);
+        gp_log("probe: %s VID=%04x PID=%04x (via %s)\n", path, vid, pid,
+               how == 1 ? "deviceinfo" : how == 2 ? "device_desc" : "ctrl_req");
     }
 
     /* Exact VID:PID match first, any bus — endpoint heuristics below would
      * misread the Steam Controller's mouse endpoint (0x82) as an Xbox pad. */
-    if (have_di && di.udi_vendorNo==VID_STEAM &&
-        (di.udi_productNo==PID_STEAM_WIRED || di.udi_productNo==PID_SC2_PUCK ||
-         di.udi_productNo==PID_SC2_WIRED)) {
+    if (have_di && vid==VID_STEAM &&
+        (pid==PID_STEAM_WIRED || pid==PID_SC2_PUCK ||
+         pid==PID_SC2_WIRED)) {
         gp_log("probe: %s VID=%04x PID=%04x → Steam Controller\n",
-               path,di.udi_vendorNo,di.udi_productNo);
-        *out_vid=VID_STEAM; *out_pid=di.udi_productNo;
+               path,vid,pid);
+        *out_vid=VID_STEAM; *out_pid=pid;
         close(fd);
         return 1;
     }
@@ -499,9 +536,11 @@ static void *usb_hid_thread(void *arg) {
         uint8_t addrs[SC2_MAX_EPS];
         int n_eps = sc2_list_in_eps(fd, is_puck, addrs, SC2_MAX_EPS);
         if (n_eps == 0) {           /* descriptor read failed: known puck layout guess */
-            static const uint8_t guess[] = {0x83,0x84,0x85,0x86};
-            memcpy(addrs, guess, sizeof(guess)); n_eps = is_puck ? 4 : 1;
-            if (!is_puck) addrs[0] = 0x81;
+            /* Config descriptor unreadable (PS5 kernel): try every IN endpoint.
+             * sc2_find_active_ep only accepts one that sends 0x42/0x45 reports. */
+            gp_log("slot[%d] SC2 config descriptor unreadable, trying IN eps 0x81-0x88\n", slot);
+            for (int k = 0; k < SC2_MAX_EPS; k++) addrs[k] = (uint8_t)(0x81 + k);
+            n_eps = SC2_MAX_EPS;
         }
 
         { int ii; for(ii=0;ii<8;ii++){int i2=ii; ioctl(fd,USB_IFACE_DRIVER_DETACH,&i2);} }
