@@ -33,6 +33,8 @@ void sc2_profile_default(sc2_profile_t *p);
 void sc2_profile_parse(const char *text, sc2_profile_t *p);
 /* Serialise; returns bytes written. */
 int  sc2_profile_format(const sc2_profile_t *p, char *out, size_t n);
+/* Friendly "Cross + R1" text for an output mask ("Nothing" if 0). */
+void sc2_combo_name(uint32_t mask, char *out, size_t n);
 
 /* Active profile used by the input path (thread-safe copy). */
 void sc2_active_set(const sc2_profile_t *p);
@@ -58,3 +60,13 @@ void sc2_select_override(const char *id);     /* "" = automatic */
 void sc2_select_reload(void);                 /* re-read active file after a save */
 void sc2_select_status(char *title, char *active, char *override_id); /* each SC2_ID_MAX+1 */
 void sc2_select_start(void);                  /* starts title-watch thread */
+/* Display name of the running game ("" if none). out >= 128 bytes. */
+void sc2_select_title_name(char *out, size_t n);
+/* Name of the active profile. */
+void sc2_select_active_name(char *out, size_t n);
+/* Profile id an on-console edit should write to: the running game's
+ * (created from the active profile if missing), else the active one. */
+void sc2_select_edit_target(char *id_out);
+
+/* On-screen notification hook (set by gc_main). */
+extern void (*sc2_notify_fn)(const char *msg);

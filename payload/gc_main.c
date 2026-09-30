@@ -48,6 +48,8 @@
 #include "controller_sc2.h"
 #include "sc2_profile.h"
 #include "webui.h"
+#include "sc2_haptics.h"
+#include "sc2_menu.h"
 
 /* ── Logging ──────────────────────────────────────────────────────────── */
 #define LOG_DIR  "/data/ghostpad"
@@ -153,6 +155,8 @@ static void notify(const char *fmt, ...) {
     va_start(ap, fmt); vsnprintf(req.message, sizeof(req.message), fmt, ap); va_end(ap);
     sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
 }
+
+static void notify_str(const char *m) { notify("%s", m); }
 
 /* ── klog capture thread ──────────────────────────────────────────────── */
 static uint64_t parse_hex_str(const char *s) {
@@ -483,7 +487,7 @@ static void *usb_hid_thread(void *arg) {
     struct usb_fs_uninit   uninit;
     uint8_t  buf[64];
     void    *buffers[1]; uint32_t lengths[1];
-    int fd = -1, out_opened = 0;
+    int fd = -1, out_opened = 0, sc2_iface = 0;
     int usb_ready_notified = 0;
 
     gp_log("slot[%d] USB thread: %s VID=0x%04x PID=0x%04x\n",
@@ -557,14 +561,14 @@ static void *usb_hid_thread(void *arg) {
         /* Wait for the controller to wake / pick the puck slot it's paired to */
         int active = 0, told = 0;
         while ((active = sc2_find_active_ep(fd, sc2_eps, addrs, n_eps, 2000)) == 0) {
-            if (!told) { notify("Ghostcontrol: Puck ready — turn on your Steam Controller"); told = 1; }
+            if (!told) { notify("Puckbridge: Puck ready — turn on your Steam Controller"); told = 1; }
         }
         memset(&uninit,0,sizeof(uninit)); ioctl(fd,USB_FS_UNINIT,&uninit);
         if (active < 0) { gp_log("slot[%d] SC2 puck removed\n",slot); close(fd); goto exit_slot; }
 
         /* Re-init with the single active endpoint at index 0 for the main loop */
         memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
-        init.pEndpoints=eps; init.ep_index_max=1;
+        init.pEndpoints=eps; init.ep_index_max=2;
         if (ioctl(fd,USB_FS_INIT,&init)!=0){ close(fd); goto exit_slot; }
         memset(&fs_open,0,sizeof(fs_open));
         fs_open.ep_index=0; fs_open.ep_no=(uint8_t)active;
@@ -577,7 +581,18 @@ static void *usb_hid_thread(void *arg) {
         eps[0].ppBuffer=buffers; eps[0].pLength=lengths; eps[0].nFrames=1;
         eps[0].timeout=0;   /* wireless: idle gaps are normal, don't time out */
         eps[0].flags=USB_FS_FLAG_SINGLE_SHORT_OK|USB_FS_FLAG_MULTI_SHORT_OK;
-        out_opened = 0;
+
+        /* Haptics: the slot's interrupt OUT usually mirrors its IN (0x83 → 0x03).
+         * If it won't open, sc2_haptics falls back to SET_REPORT on ep0. */
+        sc2_iface = active - 0x81;
+        if (sc2_iface < 0) sc2_iface = 0;
+        memset(&fs_open,0,sizeof(fs_open));
+        fs_open.ep_index=1; fs_open.ep_no=(uint8_t)(active & 0x7f);
+        fs_open.max_bufsize=64; fs_open.max_frames=1;
+        out_opened = (ioctl(fd,USB_FS_OPEN,&fs_open)==0) ? 1 : 0;
+        gp_log("slot[%d] SC2 haptics: iface %d, OUT ep 0x%02x %s\n", slot, sc2_iface,
+               active & 0x7f, out_opened ? "opened" : "unavailable (using SET_REPORT)");
+        sc2_haptic_available = 1;
         goto main_loop;
     }
 
@@ -592,7 +607,7 @@ static void *usb_hid_thread(void *arg) {
 
         /* Control transfers before FS mode takes over */
         if (steam_init(fd) != 0)
-            notify("Ghostcontrol: Steam Controller init failed — see klog");
+            notify("Puckbridge: Steam Controller init failed — see klog");
 
         memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
         init.pEndpoints=eps; init.ep_index_max=1;
@@ -735,8 +750,9 @@ main_loop: ;
         } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
-            if (was && !sc2_link) notify("Ghostcontrol: slot[%d] Steam Controller asleep / out of range", slot);
-            if (!was && sc2_link) notify("Ghostcontrol: slot[%d] Steam Controller reconnected", slot);
+            sc2_haptic_service(fd, eps, out_opened, sc2_iface);
+            if (was && !sc2_link) notify("Puckbridge: slot[%d] Steam Controller asleep / out of range", slot);
+            if (!was && sc2_link) notify("Puckbridge: slot[%d] Steam Controller reconnected", slot);
         } else if (pid == PID_STEAM_WIRED) {
             injected = steam_handle_packet(buf, len, &pad);
             if ((++steam_pkts % 1250u) == 0) steam_keepalive(fd);   /* ~every 5s */
@@ -746,7 +762,7 @@ main_loop: ;
 
         if (injected > 0) {
             if (!usb_ready_notified) {
-                notify("Ghostcontrol: slot[%d] streaming — controller active", slot);
+                notify("Puckbridge: slot[%d] streaming — controller active", slot);
                 usb_ready_notified = 1;
             }
             /* First real button press confirms the assignment — release the gate
@@ -761,7 +777,8 @@ main_loop: ;
     }
 
 reinit:
-    if (usb_ready_notified) { notify("Ghostcontrol: slot[%d] controller disconnected", slot); usb_ready_notified=0; }
+    if (usb_ready_notified) { notify("Puckbridge: slot[%d] controller disconnected", slot); usb_ready_notified=0; }
+    if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) { sc2_haptic_available = 0; sc2_menu_open = 0; }
     memset(&stop,0,sizeof(stop)); stop.ep_index=0; ioctl(fd,USB_FS_STOP,&stop);
     if (out_opened) {
         memset(&fs_close,0,sizeof(fs_close)); fs_close.ep_index=1; ioctl(fd,USB_FS_CLOSE,&fs_close);
@@ -838,7 +855,7 @@ static void *controller_manager_thread(void *arg) {
                 (vid==VID_STEAM  && pid==PID_SC2_WIRED)   ? "Steam Controller (2026)" : "Unknown";
 
             gp_log("manager: %s at %s → slot[%d]\n", name, path, slot);
-            notify("Ghostcontrol: %s detected — assign user on screen", name);
+            notify("Puckbridge: %s detected — assign user on screen", name);
 
             /* Claim the slot path before VDA so manager skips it if we retry.
              * Set the assignment gate — released when user confirms (button press). */
@@ -900,7 +917,7 @@ static void *controller_manager_thread(void *arg) {
                 pthread_detach(tid);
                 gp_log("manager: slot[%d] USB thread started handle=0x%x\n",
                        slot, (uint32_t)handle);
-                notify("Ghostcontrol: slot[%d] ready — press a button to assign", slot);
+                notify("Puckbridge: slot[%d] ready — press a button to assign", slot);
             }
             /* One controller per scan pass — assignment gate blocks the rest
              * until the user confirms this one with a button press. */
@@ -948,7 +965,7 @@ int main(void) {
 
     ghostpad_status_log_reset();
     gp_log("Ghost-Control v5 starting — %d slots\n", MAX_SLOTS);
-    notify("Ghostcontrol by StonedModder — plug in controllers now");
+    notify("PuckbridgePS5 (built on Ghostcontrol by StonedModder) — plug in controllers now");
 
     /* Kill previous instance */
     { int pfd=open(PID_PATH,O_RDONLY);
@@ -997,9 +1014,10 @@ int main(void) {
     usleep(300000); /* let klog thread connect before first VDA */
 
     /* Remap portal + per-game profile switching */
+    sc2_notify_fn = notify_str;
     sc2_select_start();
     webui_start();
-    notify("Ghostcontrol: remap portal on port %d", WEBUI_PORT);
+    notify("Puckbridge: remap portal on port %d", WEBUI_PORT);
 
     /* Start controller manager — handles all detection, VDA creation, USB threads */
     pthread_t mgr_tid;

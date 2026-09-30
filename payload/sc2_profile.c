@@ -2,6 +2,7 @@
 
 #include "sc2_profile.h"
 #include "gc_types.h"
+#include "game_list.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,8 @@
 #include <dirent.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <stdarg.h>
+#include <ctype.h>
 
 #ifdef __PROSPERO__
 void ghostpad_status_log(const char *fmt, ...);   /* gc_main.c: klog + /data/ghostpad/gc_status.log */
@@ -139,6 +142,18 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
     return (int)o;
 }
 
+void sc2_combo_name(uint32_t mask, char *out, size_t n) {
+    static const char *nice[] = { "Cross","Circle","Square","Triangle","L1","R1","L2","R2",
+        "L3","R3","Up","Down","Left","Right","Options","Create","PS","Touchpad" };
+    size_t o = 0; out[0] = 0;
+    for (int j = 0; j < N_OUT; j++)
+        if (mask & k_out[j].m) {
+            int w = snprintf(out + o, o < n ? n - o : 0, "%s%s", o ? " + " : "", nice[j]);
+            if (w > 0) o += (size_t)w;
+        }
+    if (!o) snprintf(out, n, "Nothing");
+}
+
 /* ── active profile ───────────────────────────────────────────────────── */
 
 static pthread_mutex_t g_act_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -230,7 +245,18 @@ void sc2_store_list(void (*cb)(const char *, const char *, void *), void *u) {
 int sceLncUtilGetAppIdOfRunningBigApp(void);
 int sceLncUtilGetAppTitleId(uint32_t app_id, char *title_id);
 
+void (*sc2_notify_fn)(const char *msg) = NULL;
+static void notifyf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void notifyf(const char *fmt, ...) {
+    char m[256]; va_list ap;
+    va_start(ap, fmt); vsnprintf(m, sizeof(m), fmt, ap); va_end(ap);
+    LOG("%s\n", m);
+    if (sc2_notify_fn) sc2_notify_fn(m);
+}
+
 static pthread_mutex_t g_sel_lock = PTHREAD_MUTEX_INITIALIZER;
+static char g_title_name[GC_GAME_NAME_MAX] = "";
+static char g_active_name[48] = "Default";
 static char g_title[SC2_ID_MAX + 1]    = "";
 static char g_selected[SC2_ID_MAX + 1] = "";
 static char g_override[SC2_ID_MAX + 1] = "";
@@ -245,16 +271,48 @@ static void current_title(char *out) {
     if (sc2_store_valid_id(tid)) strcpy(out, tid);
 }
 
-/* Pick override → game profile → default; apply if changed (or forced). */
+/* Find the saved profile for a title: exact id, case-insensitive, or same
+ * 9-char base id (e.g. "PPSA01949_00" or "ppsa01949"). */
+struct find_ctx { const char *title; char found[SC2_ID_MAX + 1]; };
+static void find_cb(const char *id, const char *name, void *u) {
+    (void)name;
+    struct find_ctx *c = u;
+    if (c->found[0]) return;
+    if (!strcasecmp(id, c->title) ||
+        (strlen(id) >= 9 && strlen(c->title) >= 9 && !strncasecmp(id, c->title, 9)))
+        snprintf(c->found, sizeof(c->found), "%s", id);
+}
+static int profile_for_title(const char *title, char *out) {
+    struct find_ctx c; c.title = title; c.found[0] = 0;
+    if (!title[0]) return 0;
+    sc2_store_list(find_cb, &c);
+    if (!c.found[0]) return 0;
+    strcpy(out, c.found);
+    return 1;
+}
+
+struct names_ctx { char buf[200]; };
+static void names_cb(const char *id, const char *name, void *u) {
+    (void)name;
+    struct names_ctx *c = u;
+    size_t l = strlen(c->buf);
+    snprintf(c->buf + l, sizeof(c->buf) - l, "%s%s", l ? "," : "", id);
+}
+
+/* Pick override → game profile → default; apply if changed (or forced).
+ * force: 0 = only if changed, 1 = reload, 2 = reload and announce (game changed) */
 static void apply_selection(int force) {
-    char want[SC2_ID_MAX + 1];
+    char want[SC2_ID_MAX + 1], title[SC2_ID_MAX + 1], tname[GC_GAME_NAME_MAX];
     pthread_mutex_lock(&g_sel_lock);
-    if (g_override[0])                          strcpy(want, g_override);
-    else {
-        sc2_profile_t tmp;
-        if (g_title[0] && sc2_store_load(g_title, &tmp) == 0) strcpy(want, g_title);
-        else                                                  strcpy(want, "default");
-    }
+    strcpy(title, g_title);
+    strcpy(tname, g_title_name);
+    int locked = g_override[0] != 0;
+    if (locked) strcpy(want, g_override);
+    pthread_mutex_unlock(&g_sel_lock);
+
+    if (!locked && !profile_for_title(title, want)) strcpy(want, "default");
+
+    pthread_mutex_lock(&g_sel_lock);
     int changed = strcmp(want, g_selected) != 0;
     pthread_mutex_unlock(&g_sel_lock);
     if (!changed && !force) return;
@@ -265,8 +323,25 @@ static void apply_selection(int force) {
 
     pthread_mutex_lock(&g_sel_lock);
     strcpy(g_selected, want);
+    snprintf(g_active_name, sizeof(g_active_name), "%s", p.name);
     pthread_mutex_unlock(&g_sel_lock);
-    LOG("sc2: profile '%s' (%s) active\n", want, p.name);
+
+    if (!changed && force != 2) { LOG("sc2: profile '%s' (%s) reloaded\n", want, p.name); return; }
+    if (locked)
+        notifyf("Puckbridge: \"%s\" profile locked", p.name);
+    else if (strcmp(want, "default")) {
+        if (!tname[0] || !strcmp(tname, p.name))
+            notifyf("Puckbridge: profile attached: %s", p.name);
+        else
+            notifyf("Puckbridge: \"%s\" profile attached to %s", p.name, tname);
+    }
+    else if (title[0]) {
+        struct names_ctx nc; nc.buf[0] = 0;
+        sc2_store_list(names_cb, &nc);
+        LOG("sc2: no profile for %s (saved: %s)\n", title, nc.buf);
+        notifyf("Puckbridge: no profile for %s, using Default", tname[0] ? tname : title);
+    } else
+        notifyf("Puckbridge: Default profile active");
 }
 
 void sc2_select_override(const char *id) {
@@ -277,6 +352,36 @@ void sc2_select_override(const char *id) {
 }
 
 void sc2_select_reload(void) { apply_selection(1); }
+
+void sc2_select_title_name(char *out, size_t n) {
+    pthread_mutex_lock(&g_sel_lock);
+    snprintf(out, n, "%s", g_title_name);
+    pthread_mutex_unlock(&g_sel_lock);
+}
+
+void sc2_select_active_name(char *out, size_t n) {
+    pthread_mutex_lock(&g_sel_lock);
+    snprintf(out, n, "%s", g_active_name);
+    pthread_mutex_unlock(&g_sel_lock);
+}
+
+void sc2_select_edit_target(char *id_out) {
+    char title[SC2_ID_MAX + 1], tname[GC_GAME_NAME_MAX], sel[SC2_ID_MAX + 1];
+    pthread_mutex_lock(&g_sel_lock);
+    strcpy(title, g_title); strcpy(tname, g_title_name); strcpy(sel, g_selected);
+    int locked = g_override[0] != 0;
+    pthread_mutex_unlock(&g_sel_lock);
+
+    if (locked || !title[0]) { strcpy(id_out, sel[0] ? sel : "default"); return; }
+    if (profile_for_title(title, id_out)) return;
+
+    /* Create this game's profile from whatever is active right now */
+    sc2_profile_t p;
+    sc2_active_get(&p);
+    snprintf(p.name, sizeof(p.name), "%s", tname[0] ? tname : title);
+    sc2_store_save(title, &p);
+    strcpy(id_out, title);
+}
 
 void sc2_select_status(char *title, char *active, char *ovr) {
     pthread_mutex_lock(&g_sel_lock);
@@ -293,8 +398,15 @@ static void *watch_thread(void *arg) {
         int changed = strcmp(t, g_title) != 0;
         if (changed) strcpy(g_title, t);
         pthread_mutex_unlock(&g_sel_lock);
-        if (changed) LOG("sc2: running title '%s'\n", t[0] ? t : "(none)");
-        apply_selection(0);
+        if (changed) {
+            char nm[GC_GAME_NAME_MAX] = "";
+            if (t[0]) gc_game_name(t, nm, sizeof(nm));
+            pthread_mutex_lock(&g_sel_lock);
+            snprintf(g_title_name, sizeof(g_title_name), "%s", nm);
+            pthread_mutex_unlock(&g_sel_lock);
+            LOG("sc2: running title '%s' (%s)\n", t[0] ? t : "(none)", nm);
+        }
+        apply_selection(changed && t[0] ? 2 : 0);
         sleep(2);
     }
     return NULL;

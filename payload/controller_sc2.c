@@ -3,6 +3,7 @@
 
 #include "controller_sc2.h"
 #include "sc2_profile.h"
+#include "sc2_menu.h"
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -196,6 +197,10 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     sc2_live_inputs = in;
     sc2_live_connected = 1;
 
+#ifndef SC2_RAW_LOG
+#define SC2_RAW_LOG 0   /* bit table verified on hardware; set 1 to re-check */
+#endif
+#if SC2_RAW_LOG
     /* Edge-triggered raw dump: fires only when the decoded physical-input
      * mask changes, so a button press/release logs the exact report bytes
      * next to what we parsed from them. Used to verify/fix the bit table
@@ -207,6 +212,14 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
                 b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], in);
             last_in = in;
         }
+    }
+#endif
+
+    /* 1b. on-console menu: hold "..." */
+    if (sc2_menu_filter(&in)) {
+        o->leftStick.x = o->leftStick.y = o->rightStick.x = o->rightStick.y = 128;
+        o->buttons = 0; o->connected = 1; o->quat.w = 1.0f;
+        return 1;
     }
 
     /* 2. remap */

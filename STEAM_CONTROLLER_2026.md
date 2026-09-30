@@ -18,8 +18,20 @@ Plug the **Puck** (28de:1304) into a PS5 USB port. A USB-C cable (28de:1302) als
 Changes apply the moment you save.
 Profiles are stored as plain text in `/data/ghostpad/profiles/<TITLE_ID>.ini`, so you can back them up over FTP.
 
+## On-console menu
+Hold **...** for about half a second (a quick tap still works as normal).
+- **D-pad up/down:** choose. **Left/right:** change profile. **A:** select. **B:** close.
+- **Remap a button:** press the button to change, then the button it should act as. It saves to the running game's profile, and creates that profile if it doesn't exist.
+Menu messages show as PS5 notifications, and the controller clicks on each action.
+
+## Notifications
+When a game starts you'll see which profile attached, or that it's using Default.
+
+## Vibration
+The portal's *Vibration & help* tab tests the controller's haptics. Game rumble isn't passed through yet, because the PS5 has no known way to read vibration from a virtual controller.
+
 ## Known limits
-- One controller per Puck. No rumble or gyro yet.
+- One controller per Puck. No game rumble or gyro yet.
 - The portal has no password. Anyone on your home network can open it.
 - If the Puck doesn't enumerate, try the other USB port.
 - If game detection doesn't work on your firmware, lock the profile manually with the *Use* menu.

@@ -3,6 +3,8 @@
 #include "webui.h"
 #include "sc2_profile.h"
 #include "game_list.h"
+#include "sc2_haptics.h"
+#include "sc2_menu.h"
 #include "webui_html.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -117,12 +119,48 @@ static void handle(int fd) {
         return;
     }
     if (!strncmp(path, "/api/status", 11)) {
-        char t[SC2_ID_MAX+1], a[SC2_ID_MAX+1], ov[SC2_ID_MAX+1], out[256];
+        char t[SC2_ID_MAX+1], a[SC2_ID_MAX+1], ov[SC2_ID_MAX+1], num[96];
+        char tn[GC_GAME_NAME_MAX], pn[48];
         sc2_select_status(t, a, ov);
-        snprintf(out, sizeof(out),
-            "{\"title\":\"%s\",\"active\":\"%s\",\"override\":\"%s\",\"inputs\":%u,\"connected\":%d}",
-            t, a, ov, (unsigned)sc2_live_inputs, sc2_live_connected);
-        reply(fd, 200, "application/json", out, strlen(out));
+        sc2_select_title_name(tn, sizeof(tn));
+        sc2_select_active_name(pn, sizeof(pn));
+        static char out[1024]; sb_t sb = { out, 0, sizeof(out) }; out[0] = 0;
+        sb_put(&sb, "{\"title\":"); json_str(&sb, t);
+        sb_put(&sb, ",\"title_name\":"); json_str(&sb, tn);
+        sb_put(&sb, ",\"active\":"); json_str(&sb, a);
+        sb_put(&sb, ",\"active_name\":"); json_str(&sb, pn);
+        sb_put(&sb, ",\"override\":"); json_str(&sb, ov);
+        snprintf(num, sizeof(num), ",\"inputs\":%u,\"connected\":%d,\"menu\":%d,\"haptics\":%d}",
+                 (unsigned)sc2_live_inputs, sc2_live_connected, sc2_menu_open, sc2_haptic_available);
+        sb_put(&sb, num);
+        reply(fd, 200, "application/json", out, sb.n);
+        return;
+    }
+    if (!strncmp(path, "/api/icon", 9)) {
+        char iid[SC2_ID_MAX + 1], ip[256];
+        if (get_id(path, iid) != 1 || gc_game_icon_path(iid, ip, sizeof(ip)) != 0) {
+            REPLY_TXT(fd, 404, "no icon"); return;
+        }
+        static char img[2 * 1024 * 1024];
+        FILE *f = fopen(ip, "rb");
+        if (!f) { REPLY_TXT(fd, 404, "no icon"); return; }
+        size_t n = fread(img, 1, sizeof(img), f);
+        fclose(f);
+        char h[256];
+        int hl = snprintf(h, sizeof(h),
+            "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: %zu\r\n"
+            "Cache-Control: max-age=86400\r\nConnection: close\r\n\r\n", n);
+        send_all(fd, h, (size_t)hl);
+        send_all(fd, img, n);
+        return;
+    }
+    if (is_post && !strncmp(path, "/api/haptic", 11)) {
+        if (!sc2_haptic_available) { REPLY_TXT(fd, 400, "controller not connected"); return; }
+        if      (strstr(path, "kind=left"))   sc2_haptic_pulse(SC2_PAD_LEFT,  0x1F4, 0x1F4, 200);
+        else if (strstr(path, "kind=right"))  sc2_haptic_pulse(SC2_PAD_RIGHT, 0x1F4, 0x1F4, 200);
+        else if (strstr(path, "kind=rumble")) sc2_haptic_rumble_for(0x9000, 0x6000, 700);
+        else                                  sc2_haptic_tick();
+        REPLY_TXT(fd, 200, "ok");
         return;
     }
     if (!strncmp(path, "/api/profiles", 13)) {
@@ -169,7 +207,9 @@ static void handle(int fd) {
         for (int i = 0; i < n; i++) {
             if (i) sb_put(&s, ",");
             sb_put(&s, "{\"id\":"); json_str(&s, games[i].id);
-            sb_put(&s, ",\"name\":"); json_str(&s, games[i].name); sb_put(&s, "}");
+            sb_put(&s, ",\"name\":"); json_str(&s, games[i].name);
+            sb_put(&s, games[i].has_icon ? ",\"icon\":true" : ",\"icon\":false");
+            sb_put(&s, "}");
         }
         sb_put(&s, "]");
         reply(fd, 200, "application/json", out, s.n);
