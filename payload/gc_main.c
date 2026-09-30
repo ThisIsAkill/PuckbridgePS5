@@ -43,6 +43,10 @@
 #include "usb_helpers.h"
 #include "controller_nintendo.h"
 #include "controller_xbox.h"
+#include "controller_steam.h"
+#include "controller_sc2.h"
+#include "sc2_profile.h"
+#include "webui.h"
 
 /* ── Logging ──────────────────────────────────────────────────────────── */
 #define LOG_DIR  "/data/ghostpad"
@@ -248,6 +252,21 @@ static int probe_one_path(const char *path, uint16_t *out_vid, uint16_t *out_pid
     ini.pEndpoints=&ep; ini.ep_index_max=1;
     if (ioctl(fd,USB_FS_INIT,&ini)!=0) { close(fd); return 0; }
 
+    /* Exact VID:PID match first — endpoint heuristics below would
+     * misread the Steam Controller's mouse endpoint (0x82) as an Xbox pad. */
+    { struct usb_device_info di; memset(&di,0,sizeof(di));
+      if (ioctl(fd,USB_GET_DEVICEINFO,&di)==0 &&
+          di.udi_vendorNo==VID_STEAM &&
+          (di.udi_productNo==PID_STEAM_WIRED || di.udi_productNo==PID_SC2_PUCK ||
+           di.udi_productNo==PID_SC2_WIRED)) {
+          gp_log("probe: %s VID=%04x PID=%04x → Steam Controller\n",
+                 path,di.udi_vendorNo,di.udi_productNo);
+          *out_vid=VID_STEAM; *out_pid=di.udi_productNo;
+          memset(&u,0,sizeof(u)); ioctl(fd,USB_FS_UNINIT,&u);
+          close(fd);
+          return 1;
+      } }
+
     int ii=0; ioctl(fd,USB_IFACE_DRIVER_DETACH,&ii);
     ii=1;     ioctl(fd,USB_IFACE_DRIVER_DETACH,&ii);
     ii=2;     ioctl(fd,USB_IFACE_DRIVER_DETACH,&ii);
@@ -395,6 +414,94 @@ static void *usb_hid_thread(void *arg) {
         goto main_loop;
     }
 
+    /* ── Steam Controller 2026 (Puck / cable) ──────────────────────────── */
+    if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
+        int is_puck = (pid == PID_SC2_PUCK);
+        fd = open(dev_path, O_RDWR);
+        if (fd < 0) { gp_log("slot[%d] SC2 open fail errno=%d\n", slot, errno); goto exit_slot; }
+
+        uint8_t addrs[SC2_MAX_EPS];
+        int n_eps = sc2_list_in_eps(fd, is_puck, addrs, SC2_MAX_EPS);
+        if (n_eps == 0) {           /* descriptor read failed: known puck layout guess */
+            static const uint8_t guess[] = {0x83,0x84,0x85,0x86};
+            memcpy(addrs, guess, sizeof(guess)); n_eps = is_puck ? 4 : 1;
+            if (!is_puck) addrs[0] = 0x81;
+        }
+
+        { int ii; for(ii=0;ii<8;ii++){int i2=ii; ioctl(fd,USB_IFACE_DRIVER_DETACH,&i2);} }
+        usleep(120000);
+
+        struct usb_fs_endpoint sc2_eps[SC2_MAX_EPS];
+        memset(sc2_eps,0,sizeof(sc2_eps)); memset(&init,0,sizeof(init));
+        init.pEndpoints=sc2_eps; init.ep_index_max=SC2_MAX_EPS;
+        if (ioctl(fd,USB_FS_INIT,&init)!=0){
+            gp_log("slot[%d] SC2 FS_INIT fail errno=%d\n",slot,errno);
+            close(fd); goto exit_slot;
+        }
+
+        /* Wait for the controller to wake / pick the puck slot it's paired to */
+        int active = 0, told = 0;
+        while ((active = sc2_find_active_ep(fd, sc2_eps, addrs, n_eps, 2000)) == 0) {
+            if (!told) { notify("Ghostcontrol: Puck ready — turn on your Steam Controller"); told = 1; }
+        }
+        memset(&uninit,0,sizeof(uninit)); ioctl(fd,USB_FS_UNINIT,&uninit);
+        if (active < 0) { gp_log("slot[%d] SC2 puck removed\n",slot); close(fd); goto exit_slot; }
+
+        /* Re-init with the single active endpoint at index 0 for the main loop */
+        memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
+        init.pEndpoints=eps; init.ep_index_max=1;
+        if (ioctl(fd,USB_FS_INIT,&init)!=0){ close(fd); goto exit_slot; }
+        memset(&fs_open,0,sizeof(fs_open));
+        fs_open.ep_index=0; fs_open.ep_no=(uint8_t)active;
+        fs_open.max_bufsize=64; fs_open.max_frames=1;
+        if (ioctl(fd,USB_FS_OPEN,&fs_open)!=0){
+            gp_log("slot[%d] SC2 IN 0x%02x fail errno=%d\n",slot,active,errno);
+            goto uninit_exit;
+        }
+        buffers[0]=buf; lengths[0]=64;
+        eps[0].ppBuffer=buffers; eps[0].pLength=lengths; eps[0].nFrames=1;
+        eps[0].timeout=0;   /* wireless: idle gaps are normal, don't time out */
+        eps[0].flags=USB_FS_FLAG_SINGLE_SHORT_OK|USB_FS_FLAG_MULTI_SHORT_OK;
+        out_opened = 0;
+        goto main_loop;
+    }
+
+    /* ── Steam Controller: single-pass ─────────────────────────────────── */
+    if (pid == PID_STEAM_WIRED) {
+        fd = open(dev_path, O_RDWR);
+        if (fd < 0) { gp_log("slot[%d] Steam open fail errno=%d\n", slot, errno); goto exit_slot; }
+
+        /* Detach PS5 HID from keyboard(0) / mouse(1) / gamepad(2) interfaces */
+        { int ii; for(ii=0;ii<3;ii++){int i2=ii; ioctl(fd,USB_IFACE_DRIVER_DETACH,&i2);} }
+        usleep(120000);
+
+        /* Control transfers before FS mode takes over */
+        if (steam_init(fd) != 0)
+            notify("Ghostcontrol: Steam Controller init failed — see klog");
+
+        memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
+        init.pEndpoints=eps; init.ep_index_max=1;
+        if (ioctl(fd,USB_FS_INIT,&init)!=0){
+            gp_log("slot[%d] Steam FS_INIT fail errno=%d\n",slot,errno);
+            close(fd); goto exit_slot;
+        }
+        memset(&fs_open,0,sizeof(fs_open));
+        fs_open.ep_index=0; fs_open.ep_no=STEAM_EP_IN;
+        fs_open.max_bufsize=64; fs_open.max_frames=1;
+        if (ioctl(fd,USB_FS_OPEN,&fs_open)!=0){
+            gp_log("slot[%d] Steam IN ep=0x%02x fail errno=%d\n",slot,STEAM_EP_IN,errno);
+            goto uninit_exit;
+        }
+        gp_log("slot[%d] Steam IN ep=0x%02x ok maxpkt=%u\n",
+               slot, STEAM_EP_IN, (unsigned)fs_open.max_packet_length);
+
+        buffers[0]=buf; lengths[0]=64;
+        eps[0].ppBuffer=buffers; eps[0].pLength=lengths; eps[0].nFrames=1;
+        eps[0].timeout=50; eps[0].flags=USB_FS_FLAG_SINGLE_SHORT_OK|USB_FS_FLAG_MULTI_SHORT_OK;
+        out_opened = 0;   /* no interrupt OUT; config goes over ep0 */
+        goto main_loop;
+    }
+
     /* ── Nintendo: two-pass ────────────────────────────────────────────── */
     fd = open(dev_path, O_RDWR);
     if (fd < 0) { gp_log("slot[%d] open fail errno=%d\n", slot, errno); goto exit_slot; }
@@ -464,7 +571,9 @@ static void *usb_hid_thread(void *arg) {
     }
 
 main_loop: ;
-    int hs_state = (pid==PID_XBOX) ? HS_STREAMING : HS_WAIT_81_01;
+    int hs_state = (pid==PID_XBOX || pid==PID_STEAM_WIRED || pid==PID_SC2_PUCK || pid==PID_SC2_WIRED) ? HS_STREAMING : HS_WAIT_81_01;
+    int sc2_link = 1;
+    uint32_t steam_pkts = 0;
     uint8_t nintendo_seq = 1;
 
     while (1) {
@@ -508,6 +617,14 @@ main_loop: ;
 
         if (pid == PID_XBOX) {
             injected = xbox_handle_packet(fd, eps, buf, len, &pad);
+        } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
+            int was = sc2_link;
+            injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
+            if (was && !sc2_link) notify("Ghostcontrol: slot[%d] Steam Controller asleep / out of range", slot);
+            if (!was && sc2_link) notify("Ghostcontrol: slot[%d] Steam Controller reconnected", slot);
+        } else if (pid == PID_STEAM_WIRED) {
+            injected = steam_handle_packet(buf, len, &pad);
+            if ((++steam_pkts % 1250u) == 0) steam_keepalive(fd);   /* ~every 5s */
         } else {
             injected = nintendo_handle_packet(fd, eps, buf, len, &hs_state, &nintendo_seq, &pad);
         }
@@ -600,7 +717,10 @@ static void *controller_manager_thread(void *arg) {
             const char *name =
                 (vid==VID_SWITCH && pid==PID_SWITCH) ? "Nintendo Switch Pro / 8BitDo" :
                 (vid==VID_NATIVE && pid==PID_NATIVE) ? "8BitDo Native" :
-                (vid==VID_XBOX   && pid==PID_XBOX)   ? "Xbox One S" : "Unknown";
+                (vid==VID_XBOX   && pid==PID_XBOX)   ? "Xbox One S" :
+                (vid==VID_STEAM  && pid==PID_STEAM_WIRED) ? "Steam Controller (2015)" :
+                (vid==VID_STEAM  && pid==PID_SC2_PUCK)    ? "Steam Controller Puck" :
+                (vid==VID_STEAM  && pid==PID_SC2_WIRED)   ? "Steam Controller (2026)" : "Unknown";
 
             gp_log("manager: %s at %s → slot[%d]\n", name, path, slot);
             notify("Ghostcontrol: %s detected — assign user on screen", name);
@@ -760,6 +880,11 @@ int main(void) {
         gp_log("klog thread started\n");
     }
     usleep(300000); /* let klog thread connect before first VDA */
+
+    /* Remap portal + per-game profile switching */
+    sc2_select_start();
+    webui_start();
+    notify("Ghostcontrol: remap portal on port %d", WEBUI_PORT);
 
     /* Start controller manager — handles all detection, VDA creation, USB threads */
     pthread_t mgr_tid;

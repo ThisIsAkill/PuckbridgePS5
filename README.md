@@ -1,100 +1,49 @@
-# Ghostcontrol — by StonedModder
+# Puckbridge
 
-If you enjoy my work - please consider donating to my BTC address: 
+Use the **Steam Controller (2026)** wirelessly on a jailbroken PS5, with a phone-friendly web portal for remapping every button and per-game profiles.
 
-`bc1qa9zfgnccajsw8vg7k287qz5a7apf8pefj5jjx5`
-
-
-Use third-party USB controllers on PS5. Reads USB HID input from a plugged-in controller and injects it into a virtual DualSense via the PS5's `scePadVirtualDeviceInsertData` path (Ghostpad VDI path).
-
-**Tested controller:** 8BitDo Ultimate 2 in Nintendo Switch Pro Controller mode (VID=0x057e PID=0x2009)
-
----
-
-
-
-https://github.com/user-attachments/assets/6583b1c2-3d3d-4f2e-9e79-689121fea4a3
-
-
+Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-Controller-Patcher) by StonedModder, which injects third-party USB controllers into the PS5 as a virtual DualSense. All original controller support (8BitDo / Switch Pro, Xbox One / Series) is still here.
 
 ## Features
-
-- 60Hz input streaming from USB HID controller → virtual DualSense
-- PS5 notifications: startup, controller connect/disconnect, detected controller type
-- User assignment: virtual DualSense is bound to the foreground user on startup
-- Full button mapping: face buttons, triggers, sticks, dpad, L3/R3, PS button
-- Auto-reconnect on controller unplug/replug
-
----
+- Steam Controller (2026) over its **Puck** (wireless) or USB-C cable.
+- Original Steam Controller (2015), wired.
+- **Remap portal** at `http://<PS5_IP>:8090`:
+  - every input remappable, including back grips, trackpad clicks, Steam and `...`
+  - multi-button combos on any input
+  - press a button on the controller to find it in the list
+  - trackpads as touchpad, stick, d-pad or off; invert Y, swap sticks, deadzone
+  - **per-game profiles** that switch automatically by title ID
+  - built-in log viewer for troubleshooting
+- Profiles are plain text in `/data/ghostpad/profiles/`.
 
 ## Requirements
-
-- PS5 with kernel exploit (tested on jailbroken PS5)
-- [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk)
-- USB controller — see supported list below
-
----
-
-## Supported Controllers
-
-| Controller | Mode | VID:PID | Status |
-|-----------|------|---------|--------|
-| 8BitDo Ultimate 2 | Nintendo Switch Pro | 057e:2009 | ✅ Working |
-| 8BitDo Ultimate 2 | Native | 2dc8:310b | Untested |
-
-See `othercontrollersGuide.md` for adding new controllers.
-
----
+- PS5 with a kernel exploit and an ELF loader on port 9021 (tested target: firmware 13.60 + etaHEN).
+- [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) to build.
 
 ## Build
-
 ```sh
 export PS5_PAYLOAD_SDK=/path/to/ps5-payload-sdk
-make clean all
+cd payload && make
 ```
+Output: `payload/ghost-control-ps5.elf`. The portal UI lives in `payload/web/index.html` and is embedded at build time.
 
-Output: `ghost-control-ps5.elf`
-
-## Deploy
-
+## Use
 ```sh
-# Deploy to PS5 (replace IP)
-nc -w 5 192.168.1.xxx 9021 < ghost-control-ps5.elf
+nc -w 5 <PS5_IP> 9021 < ghost-control-ps5.elf
 ```
+Plug in the Puck, turn on the controller, open `http://<PS5_IP>:8090`.
+See [STEAM_CONTROLLER_2026.md](STEAM_CONTROLLER_2026.md) for the mapping and troubleshooting.
 
-Or set `PS5_HOST` in your environment:
-```sh
-make deploy PS5_HOST=192.168.1.xxx
-```
+## Status
+Builds cleanly. The portal and profile engine are tested off-console. On-console testing with the Puck is in progress.
 
----
-
-## How It Works
-
-1. **VDA**: Creates a virtual DualSense via `scePadVirtualDeviceAddDevice(type=3)`
-2. **klog capture**: Monitors klogsrv TCP to detect the `DEVICE_ADDED` event and get the device handle
-3. **force_bind**: Binds the virtual device to the foreground user via ShellUI MBus IPC
-4. **USB HID thread**: Detaches `usb_hid0` from the controller, opens raw USB FS endpoints, runs the Nintendo Switch Pro Controller USB handshake, then reads 60Hz input reports
-5. **VDI inject**: Parses HID reports into `ScePadData` and calls `scePadVirtualDeviceInsertData` at 60Hz
-
-See `ProControllerResearch.md` for the full research documentation on the USB HID protocol.
-
----
-
-## Files
-
-| File | Description |
-|------|-------------|
-| `gc_main.c` | Main payload — VDA, VDI, USB HID thread, button parsing |
-| `shellui_pad.c` | ShellUI PT_ATTACH helper for force_bind via MBus |
-| `shellui_pad.h` | Header for shellui_pad |
-| `Makefile` | Build system |
-| `ghost-control-ps5.elf` | Pre-compiled payload (deploy directly) |
-| `ProControllerResearch.md` | Full USB protocol research for Nintendo Switch Pro Controller |
-| `othercontrollersGuide.md` | Guide for adding other USB HID controllers |
-
----
+## Credits
+- Ghostcontrol virtual DualSense injection: StonedModder
+- Steam Controller (2026) protocol: Linux `hid-steam` driver (Vicki Pfau et al.) and SDL
+- PS5 payload SDK: ps5-payload-dev
 
 ## License
+GPL-3.0-or-later, same as upstream. See [LICENSE](LICENSE).
+The original upstream README is kept in [README.upstream.md](README.upstream.md).
 
-GPL-3.0-or-later
+Not affiliated with Valve or Sony. For use with games you own.

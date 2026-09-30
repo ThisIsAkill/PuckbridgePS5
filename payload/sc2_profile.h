@@ -1,0 +1,60 @@
+#pragma once
+#include <stdint.h>
+#include <stddef.h>
+
+/* Every physical input on the Steam Controller (2026) */
+enum {
+    IN_A, IN_B, IN_X, IN_Y,
+    IN_LB, IN_RB, IN_LT, IN_RT,
+    IN_L3, IN_R3,
+    IN_DUP, IN_DDOWN, IN_DLEFT, IN_DRIGHT,
+    IN_VIEW, IN_MENU, IN_STEAM, IN_QAM,
+    IN_L4, IN_L5, IN_R4, IN_R5,
+    IN_LPAD_CLICK, IN_RPAD_CLICK,
+    SC2_IN_COUNT
+};
+
+/* Trackpad behaviour */
+enum { PAD_OFF, PAD_TOUCH, PAD_STICK, PAD_DPAD };
+
+typedef struct {
+    char     name[48];
+    uint32_t map[SC2_IN_COUNT];   /* DualSense button mask fired by each input */
+    uint8_t  lpad, rpad;          /* PAD_* */
+    uint8_t  invert_ly, invert_ry;
+    uint8_t  swap_sticks;
+    uint8_t  deadzone;            /* % of full stick travel, 0-40 */
+} sc2_profile_t;
+
+extern const char *const sc2_in_keys[SC2_IN_COUNT];
+
+void sc2_profile_default(sc2_profile_t *p);
+/* Parse ini text over p (keys not present keep their current value). */
+void sc2_profile_parse(const char *text, sc2_profile_t *p);
+/* Serialise; returns bytes written. */
+int  sc2_profile_format(const sc2_profile_t *p, char *out, size_t n);
+
+/* Active profile used by the input path (thread-safe copy). */
+void sc2_active_set(const sc2_profile_t *p);
+void sc2_active_get(sc2_profile_t *p);
+
+/* Live physical input bitmask (1 << IN_*), for the web UI's "press to find". */
+extern volatile uint32_t sc2_live_inputs;
+extern volatile int      sc2_live_connected;
+
+/* ── profile store + per-game switching (sc2_profile.c) ── */
+#define SC2_DIR        "/data/ghostpad/profiles"
+#define SC2_ID_MAX     32
+
+int  sc2_store_valid_id(const char *id);
+int  sc2_store_load(const char *id, sc2_profile_t *p);   /* 0 ok */
+int  sc2_store_save(const char *id, const sc2_profile_t *p);
+int  sc2_store_delete(const char *id);
+/* Calls cb for every saved profile id. */
+void sc2_store_list(void (*cb)(const char *id, const char *name, void *u), void *u);
+
+/* Selection state */
+void sc2_select_override(const char *id);     /* "" = automatic */
+void sc2_select_reload(void);                 /* re-read active file after a save */
+void sc2_select_status(char *title, char *active, char *override_id); /* each SC2_ID_MAX+1 */
+void sc2_select_start(void);                  /* starts title-watch thread */

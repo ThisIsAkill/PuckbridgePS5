@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Steam Controller mapping</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1b2233; --panel:#232c40; --line:#323d56; --text:#e8ecf4; --muted:#8e98ae;
+  --cross:#7aa7ff; --circle:#ff7a7a; --square:#f29ad4; --triangle:#5fd3a6; --live:#7aa7ff;
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--text)}
+body{padding:env(safe-area-inset-top) 0 calc(96px + env(safe-area-inset-bottom));font-size:16px;line-height:1.45}
+main{max-width:640px;margin:0 auto;padding:20px 16px}
+h1{font-size:1.5rem;margin:0 0 4px;font-weight:700;letter-spacing:-.01em}
+.status{color:var(--muted);font-size:.95rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dot{width:10px;height:10px;border-radius:50%;background:#5a6378;flex:none}
+.dot.on{background:var(--triangle);box-shadow:0 0 0 4px rgba(95,211,166,.18)}
+.bar{display:flex;gap:8px;margin:20px 0 6px;flex-wrap:wrap}
+select,button,input[type=range]{font:inherit;color:inherit}
+select{flex:1 1 200px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px}
+button{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
+button:focus-visible,select:focus-visible,.row:focus-visible,input:focus-visible{outline:2px solid var(--cross);outline-offset:2px}
+button.primary{background:var(--cross);border-color:var(--cross);color:#0f1a33;font-weight:700}
+button.danger{color:var(--circle)}
+.hint{color:var(--muted);font-size:.9rem;margin:6px 0 0}
+section{margin-top:28px}
+h2{font-size:1rem;color:var(--muted);font-weight:700;margin:0 0 8px}
+.rows{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-top:1px solid var(--line);cursor:pointer;min-height:52px;transition:background .15s}
+.row:first-child{border-top:0}
+.row .phys{font-weight:700}
+.row.live{background:rgba(122,167,255,.16);box-shadow:inset 3px 0 0 var(--live)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chip{font-size:.85rem;padding:3px 9px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.chip.none{color:var(--muted);border-style:dashed}
+.c-CROSS{color:var(--cross);border-color:currentColor}.c-CIRCLE{color:var(--circle);border-color:currentColor}
+.c-SQUARE{color:var(--square);border-color:currentColor}.c-TRIANGLE{color:var(--triangle);border-color:currentColor}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-top:1px solid var(--line);min-height:52px}
+.opt:first-child{border-top:0}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;border-radius:0;min-height:36px;padding:6px 10px;background:transparent;font-size:.9rem}
+.seg button[aria-pressed=true]{background:var(--cross);color:#0f1a33;font-weight:700}
+input[type=checkbox]{width:22px;height:22px;accent-color:var(--cross)}
+input[type=range]{width:140px;accent-color:var(--cross)}
+.savebar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:rgba(27,34,51,.94);border-top:1px solid var(--line);display:none;backdrop-filter:blur(8px)}
+.savebar.show{display:block}
+.savebar div{max-width:640px;margin:0 auto;display:flex;gap:8px;align-items:center;justify-content:space-between}
+.sheet{position:fixed;inset:0;background:rgba(10,14,24,.6);display:none;align-items:flex-end;justify-content:center;z-index:5}
+.sheet.show{display:flex}
+.sheet .box{background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;width:100%;max-width:640px;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto}
+.sheet h3{margin:0 0 4px;font-size:1.15rem}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.grid button[aria-pressed=true]{background:var(--cross);border-color:var(--cross);color:#0f1a33;font-weight:700}
+.grid .g-CROSS[aria-pressed=false]{color:var(--cross)}.grid .g-CIRCLE[aria-pressed=false]{color:var(--circle)}
+.grid .g-SQUARE[aria-pressed=false]{color:var(--square)}.grid .g-TRIANGLE[aria-pressed=false]{color:var(--triangle)}
+.toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top));transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:none;z-index:9}
+.toast.show{display:block}
+@media (prefers-reduced-motion:reduce){.row{transition:none}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Steam Controller mapping</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="stat">Connecting to PS5…</span></div>
+
+  <div class="bar">
+    <select id="prof" aria-label="Profile to edit"></select>
+    <button id="newGame">New profile for this game</button>
+  </div>
+  <div class="bar">
+    <select id="mode" aria-label="Which profile is used"></select>
+    <button id="del" class="danger">Delete profile</button>
+  </div>
+  <p class="hint">Press any button on the controller to jump to it. Tap a row to change what it does; pick several buttons to make a combo.</p>
+
+  <div id="groups"></div>
+
+  <section>
+    <h2>Sticks and trackpads</h2>
+    <div class="rows">
+      <div class="opt"><span>Left trackpad</span><div class="seg" data-k="LPAD"></div></div>
+      <div class="opt"><span>Right trackpad</span><div class="seg" data-k="RPAD"></div></div>
+      <label class="opt"><span>Invert left stick up/down</span><input type="checkbox" data-k="INVERT_LY"></label>
+      <label class="opt"><span>Invert right stick up/down</span><input type="checkbox" data-k="INVERT_RY"></label>
+      <label class="opt"><span>Swap left and right sticks</span><input type="checkbox" data-k="SWAP_STICKS"></label>
+      <label class="opt"><span>Stick deadzone <b id="dzv"></b></span><input type="range" min="0" max="40" data-k="DEADZONE"></label>
+    </div>
+  </section>
+  <section>
+    <h2>Troubleshooting</h2>
+    <div class="rows">
+      <div class="opt"><span>Log from this session</span><span><button id="logShow">Show</button> <button id="logCopy">Copy</button></span></div>
+    </div>
+    <pre id="log" hidden style="white-space:pre-wrap;word-break:break-word;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;font-size:.8rem;max-height:50vh;overflow:auto;margin:8px 0 0"></pre>
+  </section>
+</main>
+
+<div class="savebar" id="savebar"><div><span>Unsaved changes</span><span><button id="revert">Undo</button> <button class="primary" id="save">Save changes</button></span></div></div>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetT">
+  <div class="box">
+    <h3 id="sheetT"></h3>
+    <p class="hint">Pressing it sends every button you select here.</p>
+    <div class="grid" id="grid"></div>
+    <div style="display:flex;gap:8px;justify-content:space-between">
+      <button id="clear">Do nothing</button>
+      <button class="primary" id="done">Done</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const INPUTS=[
+ ["Face buttons",[["A","A"],["B","B"],["X","X"],["Y","Y"]]],
+ ["Shoulders and triggers",[["LB","Left bumper"],["RB","Right bumper"],["LT","Left trigger"],["RT","Right trigger"]]],
+ ["Sticks and d-pad",[["L3","Left stick click"],["R3","Right stick click"],["DUP","D-pad up"],["DDOWN","D-pad down"],["DLEFT","D-pad left"],["DRIGHT","D-pad right"]]],
+ ["System",[["VIEW","View"],["MENU","Menu"],["STEAM","Steam"],["QAM","Quick access (…)"]]],
+ ["Back grips",[["L4","L4 (left top)"],["L5","L5 (left bottom)"],["R4","R4 (right top)"],["R5","R5 (right bottom)"]]],
+ ["Trackpad clicks",[["LPAD_CLICK","Left trackpad click"],["RPAD_CLICK","Right trackpad click"]]],
+];
+/* bit order must match sc2_profile.h */
+const BITS=["A","B","X","Y","LB","RB","LT","RT","L3","R3","DUP","DDOWN","DLEFT","DRIGHT","VIEW","MENU","STEAM","QAM","L4","L5","R4","R5","LPAD_CLICK","RPAD_CLICK"];
+const OUTS=[["CROSS","Cross"],["CIRCLE","Circle"],["SQUARE","Square"],["TRIANGLE","Triangle"],["L1","L1"],["R1","R1"],["L2","L2"],["R2","R2"],["L3","L3"],["R3","R3"],["UP","Up"],["DOWN","Down"],["LEFT","Left"],["RIGHT","Right"],["OPTIONS","Options"],["CREATE","Create"],["PS","PS"],["TOUCHPAD","Touchpad"]];
+const OUTNAME=Object.fromEntries(OUTS);
+const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
+
+let cur={}, saved="", editing="default", profiles=[], status={};
+const $=s=>document.querySelector(s);
+
+function parse(t){const p={};t.split("\n").forEach(l=>{const i=l.indexOf("=");if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim()});return p}
+function fmt(p){return Object.entries(p).map(([k,v])=>k+"="+v).join("\n")+"\n"}
+function combo(v){return !v||v==="NONE"?[]:v.split("+")}
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2200)}
+function dirty(){$("#savebar").classList.toggle("show",fmt(cur)!==saved)}
+
+async function api(path,opt){const r=await fetch(path,opt);const t=await r.text();if(!r.ok)throw new Error(t);return t}
+
+function renderRows(){
+  const g=$("#groups");g.innerHTML="";
+  INPUTS.forEach(([title,list])=>{
+    const s=document.createElement("section");
+    s.innerHTML=`<h2>${title}</h2><div class="rows"></div>`;
+    const rows=s.querySelector(".rows");
+    list.forEach(([k,label])=>{
+      const r=document.createElement("div");r.className="row";r.tabIndex=0;r.dataset.k=k;r.setAttribute("role","button");
+      const c=combo(cur[k]);
+      r.innerHTML=`<span class="phys">${label}</span><span class="chips">${c.length?c.map(o=>`<span class="chip c-${o}">${OUTNAME[o]||o}</span>`).join(""):'<span class="chip none">Nothing</span>'}</span>`;
+      r.onclick=()=>openSheet(k,label);
+      r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(k,label)}};
+      rows.appendChild(r);
+    });
+    g.appendChild(s);
+  });
+}
+function renderOpts(){
+  document.querySelectorAll(".seg").forEach(seg=>{
+    const k=seg.dataset.k;seg.innerHTML="";
+    PADS.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",cur[k]===v);b.onclick=()=>{cur[k]=v;renderOpts();dirty()};seg.appendChild(b)});
+  });
+  document.querySelectorAll("input[type=checkbox][data-k]").forEach(i=>{i.checked=cur[i.dataset.k]==="1";i.onchange=()=>{cur[i.dataset.k]=i.checked?"1":"0";dirty()}});
+  const dz=$("input[type=range]");dz.value=cur.DEADZONE||9;$("#dzv").textContent=dz.value+"%";
+  dz.oninput=()=>{cur.DEADZONE=dz.value;$("#dzv").textContent=dz.value+"%";dirty()};
+}
+function render(){renderRows();renderOpts();dirty()}
+
+let sheetKey=null,sel=new Set();
+function openSheet(k,label){
+  sheetKey=k;sel=new Set(combo(cur[k]));$("#sheetT").textContent=label;
+  const g=$("#grid");g.innerHTML="";
+  OUTS.forEach(([v,l])=>{const b=document.createElement("button");b.className="g-"+v;b.textContent=l;b.setAttribute("aria-pressed",sel.has(v));
+    b.onclick=()=>{sel.has(v)?sel.delete(v):sel.add(v);b.setAttribute("aria-pressed",sel.has(v))};g.appendChild(b)});
+  $("#sheet").classList.add("show");g.querySelector("button").focus();
+}
+function closeSheet(apply){
+  if(apply){const order=OUTS.map(o=>o[0]).filter(o=>sel.has(o));cur[sheetKey]=order.length?order.join("+"):"NONE";renderRows();dirty()}
+  $("#sheet").classList.remove("show");
+  const r=document.querySelector(`.row[data-k="${sheetKey}"]`);r&&r.focus();
+}
+$("#done").onclick=()=>closeSheet(true);
+$("#clear").onclick=()=>{sel.clear();closeSheet(true)};
+$("#sheet").onclick=e=>{if(e.target.id==="sheet")closeSheet(false)};
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#sheet").classList.contains("show"))closeSheet(false)});
+
+async function load(id){
+  if(fmt(cur)!==saved&&saved&&!confirm("Discard unsaved changes?")){$("#prof").value=editing;return}
+  editing=id;const t=await api("/api/profile?id="+encodeURIComponent(id));
+  cur=parse(t);saved=fmt(cur);render();
+  $("#del").disabled=id==="default";
+}
+async function refreshList(){
+  profiles=JSON.parse(await api("/api/profiles"));
+  profiles.sort((a,b)=>a.id==="default"?-1:b.id==="default"?1:a.name.localeCompare(b.name));
+  const label=p=>p.id==="default"?"Default (all games)":`${p.name} · ${p.id}`;
+  $("#prof").innerHTML=profiles.map(p=>`<option value="${p.id}">Edit: ${label(p)}</option>`).join("");
+  $("#prof").value=editing;
+  $("#mode").innerHTML=`<option value="">Use: automatic, per game</option>`+profiles.map(p=>`<option value="${p.id}">Use: always ${label(p)}</option>`).join("");
+  $("#mode").value=status.override||"";
+}
+
+$("#prof").onchange=e=>load(e.target.value);
+$("#mode").onchange=async e=>{await api("/api/override?id="+encodeURIComponent(e.target.value),{method:"POST"});toast(e.target.value?"Profile locked":"Switching automatically per game")};
+$("#save").onclick=async()=>{try{await api("/api/profile?id="+encodeURIComponent(editing),{method:"POST",body:fmt(cur)});saved=fmt(cur);dirty();await refreshList();toast("Saved")}catch(e){toast("Couldn't save: "+e.message)}};
+$("#revert").onclick=()=>{cur=parse(saved);render()};
+$("#del").onclick=async()=>{if(editing==="default"||!confirm("Delete this profile?"))return;await api("/api/delete?id="+encodeURIComponent(editing),{method:"POST"});editing="default";saved="";await refreshList();await load("default");toast("Deleted")};
+$("#newGame").onclick=async()=>{
+  const tid=status.title;
+  if(!tid){toast("Start a game first, then try again");return}
+  if(profiles.some(p=>p.id===tid)){saved="";$("#prof").value=tid;await load(tid);toast("This game already has a profile");return}
+  const name=prompt("Name this profile",tid);if(name===null)return;
+  const p={...cur,name:name||tid};
+  await api("/api/profile?id="+encodeURIComponent(tid),{method:"POST",body:fmt(p)});
+  editing=tid;saved="";await refreshList();await load(tid);toast("Created from the profile you were editing");
+};
+
+async function getLog(){return api("/api/log")}
+$("#logShow").onclick=async()=>{const p=$("#log");if(!p.hidden){p.hidden=true;$("#logShow").textContent="Show";return}p.textContent=await getLog();p.hidden=false;$("#logShow").textContent="Hide";p.scrollTop=p.scrollHeight};
+$("#logCopy").onclick=async()=>{const t=await getLog();try{await navigator.clipboard.writeText(t);toast("Log copied")}catch(e){const p=$("#log");p.textContent=t;p.hidden=false;$("#logShow").textContent="Hide";toast("Select the log text and copy it")}};
+
+let lastLive=0;
+async function poll(){
+  try{
+    status=JSON.parse(await api("/api/status"));
+    $("#dot").classList.toggle("on",!!status.connected);
+    const prof=profiles.find(p=>p.id===status.active);
+    $("#stat").textContent=(status.connected?"Controller connected":"Controller not connected")+
+      ", "+(status.title?"Game "+status.title:"No game running")+
+      ", using "+(prof?prof.name:status.active||"Default")+(status.override?" (locked)":"");
+    const live=status.inputs>>>0;
+    document.querySelectorAll(".row").forEach(r=>{const b=BITS.indexOf(r.dataset.k);r.classList.toggle("live",!!(live&(1<<b)))});
+    const fresh=live&~lastLive;
+    if(fresh&&!$("#sheet").classList.contains("show")){const b=BITS.findIndex((_,i)=>fresh&(1<<i));const r=document.querySelector(`.row[data-k="${BITS[b]}"]`);r&&r.scrollIntoView({block:"center",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"})}
+    lastLive=live;
+  }catch(e){$("#dot").classList.remove("on");$("#stat").textContent="Can't reach the PS5. Is the payload running?"}
+  setTimeout(poll,150);
+}
+(async()=>{try{try{status=JSON.parse(await api("/api/status"))}catch(e){}editing=status.active||"default";await refreshList();await load(editing)}catch(e){$("#stat").textContent="Can't reach the PS5. Is the payload running?"}poll()})();
+</script>
+</body>
+</html>
