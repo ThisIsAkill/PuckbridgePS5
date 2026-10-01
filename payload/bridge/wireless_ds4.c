@@ -7160,8 +7160,12 @@ pb_hooks_install_locked(int want_input, int want_vibe, int want_audio, pid_t *ou
 
     uintptr_t sb = (uintptr_t)pb_read_state_stub, se = (uintptr_t)pb_stub_end;
     for (unsigned i = 0; i < PB_N_KINDS; i++)
-        if (k_pb_hooks[i].stub < sb || k_pb_hooks[i].stub >= se) { snprintf(why, why_n, "stub layout"); return -8; }
-    if (se <= sb || se - sb > 4096) { snprintf(why, why_n, "stub layout"); return -8; }
+        if (k_pb_hooks[i].stub < sb || k_pb_hooks[i].stub >= se) {
+            snprintf(why, why_n, "stub layout (stub %u outside block)", i); return -8;
+        }
+    if (se <= sb || se - sb > 16384) {                 /* whole stub block, copied into the game */
+        snprintf(why, why_n, "stub layout (%lu bytes)", (unsigned long)(se - sb)); return -8;
+    }
     size_t stub_size = se - sb;
     size_t gw_off = (stub_size + 15u) & ~(size_t)15u;
     size_t code_map = (gw_off + PB_N_KINDS * 16u + POORDS4_TARGET_PAGE_SIZE - 1u) & ~(size_t)(POORDS4_TARGET_PAGE_SIZE - 1u);
