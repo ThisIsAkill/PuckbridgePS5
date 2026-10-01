@@ -223,4 +223,5 @@ int pb_hooks_install(int want_input, int want_vibe, int want_audio, pid_t *out_p
 int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled,
                      int mode, int owner, int silence);   /* mode: 0 both, 1 last used, 2 Steam Controller only */
 int pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st);
+int pb_hooks_set_silence(pid_t pid, intptr_t args_addr, int on);
 int pb_hooks_remove(pid_t pid, intptr_t args_addr);

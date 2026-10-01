@@ -6869,21 +6869,13 @@ int32_t pb_set_vibration_stub(int32_t handle, const uint8_t *param, PbArgs *a)
     if (param && a->magic == PB_MAGIC) {
         a->vhandle = handle; a->vlarge = param[0]; a->vsmall = param[1];
         __atomic_add_fetch(&a->vseq, 1u, __ATOMIC_RELEASE);
-        /* Steam Controller owns the player: keep the native pad still */
-        if (a->in_enabled && a->in_age <= PB_STALE_READS &&
-            (a->in_mode == 2 || (a->in_mode == 1 && a->in_owner == 1)))
-            pass = quiet;
+        /* Steam Controller is the active pad: keep the DualSense motors still */
+        if (a->a_silence) pass = quiet;
     }
     __atomic_add_fetch(&a->vcalls, 1u, __ATOMIC_RELAXED);
     return ((fn)(uintptr_t)a->orig[7])(handle, pass);
 }
 /* ── audio ports ───────────────────────────────────────────────────── */
-static __attribute__((always_inline)) inline int
-pb_owner_is_sc2(PbArgs *a)
-{
-    return a->in_enabled && a->in_age <= PB_STALE_READS &&
-           (a->in_mode == 2 || (a->in_mode == 1 && a->in_owner == 1));
-}
 
 static __attribute__((always_inline)) inline int
 pb_port_find(PbArgs *a, uint64_t handle)
@@ -6970,7 +6962,7 @@ int32_t pb_audio_output_stub(int32_t handle, const void *ptr, PbArgs *a)
     if (pi >= 0) {
         __atomic_add_fetch(&a->a_calls, 1u, __ATOMIC_RELAXED);
         pb_peak(a, pi, (const uint8_t *)ptr);
-        if (a->a_silence && pb_owner_is_sc2(a)) {
+        if (a->a_silence) {
             uint32_t bytes = a->port[pi].len * a->port[pi].ch * (a->port[pi].fmt ? 4u : 2u);
             if (bytes && bytes <= PB_ZERO_BYTES) { pass = a->zero; __atomic_add_fetch(&a->a_muted, 1u, __ATOMIC_RELAXED); }
         }
@@ -6995,7 +6987,7 @@ int32_t pb_audio_outputs_stub(uint8_t *params, uint32_t num, PbArgs *a)
             if (pi < 0) continue;
             __atomic_add_fetch(&a->a_calls, 1u, __ATOMIC_RELAXED);
             pb_peak(a, pi, (const uint8_t *)ptr);
-            if (a->a_silence && pb_owner_is_sc2(a)) {
+            if (a->a_silence) {
                 uint32_t bytes = a->port[pi].len * a->port[pi].ch * (a->port[pi].fmt ? 4u : 2u);
                 if (bytes && bytes <= PB_ZERO_BYTES) {
                     const void *z = a->zero; __builtin_memcpy(local + i * 16u + 8u, &z, 8);
@@ -7045,7 +7037,7 @@ int32_t pb_audio2_setattr_stub(uint64_t port, const uint8_t *attrs, uint32_t num
             if (!pcm) continue;
             __atomic_add_fetch(&a->a_calls, 1u, __ATOMIC_RELAXED);
             pb_peak(a, pi, (const uint8_t *)pcm);
-            if (a->a_silence && pb_owner_is_sc2(a)) {
+            if (a->a_silence) {
                 const void *zp = &zero_pcm; __builtin_memcpy(local + i * 24u + 8u, &zp, 8);
                 pass = local; __atomic_add_fetch(&a->a_muted, 1u, __ATOMIC_RELAXED);
             }
@@ -7256,6 +7248,17 @@ pb_hooks_publish_locked(pid_t pid, intptr_t args_addr, const PbPublishFrame *pf,
 }
 
 static int
+pb_hooks_set_silence_locked(pid_t pid, intptr_t args_addr, int on)
+{
+#if !defined(__PROSPERO__)
+    (void)pid; (void)args_addr; (void)on; return -1;
+#else
+    uint32_t v = on ? 1u : 0u;
+    return game_bridge_process_write(pid, args_addr + (intptr_t)offsetof(PbArgs, a_silence), &v, sizeof(v));
+#endif
+}
+
+static int
 pb_hooks_read_locked(pid_t pid, intptr_t args_addr, PbStatus *st)
 {
 #if !defined(__PROSPERO__)
@@ -7318,6 +7321,13 @@ int pb_hooks_read(pid_t pid, intptr_t args_addr, PbStatus *st)
 {
     pthread_mutex_lock(&g_pb_bridge_lock);
     int r = pb_hooks_read_locked(pid, args_addr, st);
+    pthread_mutex_unlock(&g_pb_bridge_lock);
+    return r;
+}
+int pb_hooks_set_silence(pid_t pid, intptr_t args_addr, int on)
+{
+    pthread_mutex_lock(&g_pb_bridge_lock);
+    int r = pb_hooks_set_silence_locked(pid, args_addr, on);
     pthread_mutex_unlock(&g_pb_bridge_lock);
     return r;
 }
