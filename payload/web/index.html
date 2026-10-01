@@ -40,6 +40,7 @@ header{position:sticky;top:0;z-index:4;background:rgba(15,20,32,.82);backdrop-fi
 .brand small{color:var(--muted);font-weight:400;margin-left:8px}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--muted);white-space:nowrap}
 .dot{width:9px;height:9px;border-radius:50%;background:#5a6378;flex:none}
+.dot.paused{background:#f5c26b}
 .dot.on{background:var(--triangle);box-shadow:0 0 0 4px rgba(95,211,166,.18)}
 nav.tabs{display:flex;gap:4px}
 nav.tabs button{background:transparent;border-color:transparent;color:var(--muted)}
@@ -245,6 +246,11 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <h2>Quick setup</h2>
         <p>Recommended: play with the Steam Controller as your main controller, with game rumble sent to it. Turn the Steam Controller off at any time and your DualSense takes over; wake the Steam Controller with its <b>Steam</b> button to switch back.</p>
         <div class="btns"><button class="primary" id="ghRec">Use recommended settings</button></div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <h2>Pause Puckbridge</h2>
+        <p>Hold the Steam Controller's <kbd>…</kbd> button for 5 seconds, anywhere (in a game or on the home screen), to pause Puckbridge: the Steam Controller stops sending input and your DualSense works exactly as normal. Hold it for 5 seconds again to resume. The controller gives a long buzz when pausing and a short one when resuming.</p>
+        <div class="btns"><button id="pauseBtn">Pause now</button></div>
       </div>
       <div class="card">
         <h2>In games</h2>
@@ -539,13 +545,17 @@ function paintLive(live){
 async function poll(){
   try{
     status=JSON.parse(await api("/api/status"));
-    $("#dot").classList.toggle("on",!!status.connected);
-    $("#conn").textContent=status.connected?"Controller connected":"Controller not connected";
+    $("#dot").classList.toggle("on",!!status.connected&&!status.paused);
+    $("#dot").classList.toggle("paused",!!status.paused);
+    $("#conn").textContent=status.paused?"Paused · hold … 5 s to resume":status.connected?"Controller connected":"Controller not connected";
+    $("#pauseBtn").textContent=status.paused?"Resume now":"Pause now";$("#pauseBtn").className=status.paused?"primary":"";
     renderNow();paintLive(status.inputs>>>0);paintHap();
     if($("#mode").value!==(status.override||""))$("#mode").value=status.override||"";
   }catch(e){$("#dot").classList.remove("on");$("#conn").textContent="PS5 unreachable"}
   setTimeout(poll,150);
 }
+
+$("#pauseBtn").onclick=async()=>{try{await api("/api/pause?on="+(status.paused?0:1),{method:"POST"});toast(status.paused?"Resumed":"Paused")}catch(e){toast(e.message)}};
 
 /* ── help ── */
 $$("[data-hap]").forEach(b=>b.onclick=async()=>{try{await api("/api/haptic?kind="+b.dataset.hap+"&via="+$("#hapVia").value,{method:"POST"});toast("Sent to controller")}catch(e){toast(e.message||"Request failed")}});

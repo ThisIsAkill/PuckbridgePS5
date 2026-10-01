@@ -608,7 +608,7 @@ static void *usb_hid_thread(void *arg) {
         }
         memset(&uninit,0,sizeof(uninit)); ioctl(fd,USB_FS_UNINIT,&uninit);
         if (active < 0) { gp_log("slot[%d] SC2 puck removed\n",slot); close(fd); goto exit_slot; }
-        sc2_vda_attach(slot);
+        if (!sc2_paused) sc2_vda_attach(slot);
 
         /* Re-init with the single active endpoint at index 0 for the main loop */
         memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
@@ -819,27 +819,43 @@ main_loop: ;
         } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
-            /* Only real input reports reach the game. Battery/status and
-             * lizard-mode reports leave `pad` zeroed, which reads as a stick
-             * pushed fully up-left. On disconnect nothing is fed and the
-             * bridge is disabled (conn = 0), so native input resumes. */
-            if (injected) game_hooks_feed(&pad, sc2_link);
-            else if (!sc2_link) game_hooks_feed(NULL, 0);
-            sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
-            if (was && !sc2_link) {
-                inject_pad(slot, &pad);                     /* release everything first */
-                sc2_vda_detach(slot, "controller asleep / out of range");
-                notify("Puckbridge: Steam Controller disconnected");
+            if (sc2_paused) {
+                /* Paused (hold … 5 s): release everything and remove the
+                 * virtual pad; the hooks see it as off, so the DualSense is
+                 * fully in charge. Reports are still read to catch the resume. */
+                game_hooks_feed(NULL, 0);
+                sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
+                if (g_slots[slot].vdi_ready) {
+                    ScePadData rel; memset(&rel, 0, sizeof(rel));
+                    rel.leftStick.x = rel.leftStick.y = rel.rightStick.x = rel.rightStick.y = 128;
+                    rel.connected = 1; rel.quat.w = 1.0f;
+                    inject_pad(slot, &rel);
+                    sc2_vda_detach(slot, "paused");
+                }
                 injected = 0;
+            } else {
+                /* Only real input reports reach the game. Battery/status and
+                 * lizard-mode reports leave `pad` zeroed, which reads as a stick
+                 * pushed fully up-left. On disconnect nothing is fed and the
+                 * bridge is disabled (conn = 0), so native input resumes. */
+                if (injected) game_hooks_feed(&pad, sc2_link);
+                else if (!sc2_link) game_hooks_feed(NULL, 0);
+                sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
+                if (was && !sc2_link) {
+                    inject_pad(slot, &pad);                     /* release everything first */
+                    sc2_vda_detach(slot, "controller asleep / out of range");
+                    notify("Puckbridge: Steam Controller disconnected");
+                    injected = 0;
+                }
+                /* In a hooked game the Steam Controller is merged straight into the
+                 * player's controller reads, so the virtual pad is removed there
+                 * (it would only take rumble away from the DualSense). It comes
+                 * back for the home screen and games that couldn't be hooked. */
+                if (game_hooks_input_active()) {
+                    if (g_slots[slot].vdi_ready) sc2_vda_detach(slot, "game uses merged input");
+                    injected = 0;
+                } else if (sc2_link && !g_slots[slot].vdi_ready) sc2_vda_attach(slot);
             }
-            /* In a hooked game the Steam Controller is merged straight into the
-             * player's controller reads, so the virtual pad is removed there
-             * (it would only take rumble away from the DualSense). It comes
-             * back for the home screen and games that couldn't be hooked. */
-            if (game_hooks_input_active()) {
-                if (g_slots[slot].vdi_ready) sc2_vda_detach(slot, "game uses merged input");
-                injected = 0;
-            } else if (sc2_link && !g_slots[slot].vdi_ready) sc2_vda_attach(slot);
         } else if (pid == PID_STEAM_WIRED) {
             injected = steam_handle_packet(buf, len, &pad);
             if ((++steam_pkts % 1250u) == 0) steam_keepalive(fd);   /* ~every 5s */

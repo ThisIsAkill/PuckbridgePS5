@@ -28,6 +28,11 @@ Every input can have several activators, set in the portal when you tap a contro
 
 Any activator can combine several PS5 buttons. Timings (long press, double press, turbo) are per profile.
 
+## Pause and resume
+Hold **…** (Quick access) for 5 seconds, anywhere: in a game, on the home screen, or in a menu. Puckbridge pauses: the Steam Controller's virtual controller is removed and nothing it does reaches the PS5, and in hooked games the DualSense gets its haptics, speaker and input back exactly as if the Steam Controller were off. A long buzz confirms it. Hold **…** for 5 seconds again to resume (short buzz). The portal's header shows *Paused*, and *Settings & help → Pause Puckbridge* has a button that does the same.
+
+While you hold **…**, it still sends its normal binding (Touchpad by default) until the pause kicks in, and a short tap works as usual. After resuming, **…** does nothing until you let go, so resuming never presses Touchpad. Pausing doesn't survive reloading the payload.
+
 ## On-console menu
 Bind **Puckbridge menu** to any input or activator (e.g. Quick access → Long press), then press it in-game.
 D-pad up/down chooses, left/right changes profile, A selects, B closes. *Remap a button* saves to the running game's profile.

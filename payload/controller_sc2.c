@@ -5,6 +5,7 @@
 #include "sc2_profile.h"
 #include "sc2_menu.h"
 #include "sc2_binding.h"
+#include "sc2_haptics.h"
 #include <time.h>
 #include <string.h>
 #include <errno.h>
@@ -20,6 +21,7 @@ void ghostpad_status_log(const char *fmt, ...);   /* gc_main.c: klog + /data/gho
 #endif
 
 #define SC2_TRIG_THRESHOLD  16          /* digital press point (0-255) */
+#define SC2_PAUSE_HOLD_MS   5000        /* hold … this long to pause/resume */
 
 #define RID_INPUT     0x42
 #define RID_INPUT2    0x45
@@ -163,6 +165,28 @@ int sc2_find_active_ep(int fd, struct usb_fs_endpoint *eps,
     return found;
 }
 
+/* ── pause / resume ───────────────────────────────────────────────────── */
+
+volatile int sc2_paused = 0;
+
+void sc2_set_paused(int on) {
+    on = on ? 1 : 0;
+    if (on == sc2_paused) return;
+    sc2_paused = on;
+    sc2_menu_open = 0;
+    sc2_bind_reset();
+    if (on) {
+        sc2_haptic_rumble_set(0, 0);
+        sc2_haptic_rumble_for(0x8000, 0x8000, 450);      /* one long buzz */
+        LOG("sc2: Puckbridge paused\n");
+        if (sc2_notify_fn) sc2_notify_fn("Puckbridge paused. Your DualSense works as normal. Hold the ... button for 5 seconds to resume.");
+    } else {
+        sc2_haptic_rumble_for(0x8000, 0x8000, 120);      /* short buzz */
+        LOG("sc2: Puckbridge resumed\n");
+        if (sc2_notify_fn) sc2_notify_fn("Puckbridge resumed.");
+    }
+}
+
 /* ── parsing ──────────────────────────────────────────────────────────── */
 
 static inline int16_t le16(const uint8_t *p) {
@@ -244,6 +268,26 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     sc2_live_inputs = in;
     sc2_live_connected = 1;
 
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+    int64_t now = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+
+    /* 1a. hold … for 5 s anywhere: pause / resume Puckbridge. After it fires,
+     *     … stays masked until released, so resuming doesn't press Touchpad. */
+    static int64_t qam_since = 0;
+    static int qam_latched = 0;
+    if (in & (1u << IN_QAM)) {
+        if (!qam_since) qam_since = now;
+        else if (!qam_latched && now - qam_since >= SC2_PAUSE_HOLD_MS) {
+            qam_latched = 1;
+            sc2_set_paused(!sc2_paused);
+        }
+    } else {
+        qam_since = 0;
+        qam_latched = 0;
+    }
+    if (qam_latched) in &= ~(1u << IN_QAM);
+    if (sc2_paused) return 0;                 /* nothing reaches the PS5 */
+
 #ifndef SC2_RAW_LOG
 #define SC2_RAW_LOG 0   /* bit table verified on hardware; set 1 to re-check */
 #endif
@@ -271,8 +315,6 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     }
 
     /* 2. Steam Input-style bindings */
-    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
-    int64_t now = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
     static uint32_t prev_act = 0;
     uint32_t btn = sc2_bind_eval(&P, in, BIT(5,0x08), BIT(4,0x80), now);
     uint32_t act = btn & PB_ACT_MASK;

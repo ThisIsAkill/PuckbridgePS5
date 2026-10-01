@@ -12,6 +12,7 @@ Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-
 - **Plays real games (PS4 and PS5).** The controller appears to the PS5 as a normal controller, so every game accepts it with no per-game setup.
 - **Rumble in games**, including PS5 titles like *Returnal* that drive the DualSense through audio rather than the classic vibration call — Puckbridge forwards that to the Steam Controller's grip motors.
 - **Hand-off to the DualSense.** Turn the Steam Controller off (or let it sleep) and your DualSense takes over the game normally. Wake the Steam Controller with its **Steam** button and it takes back over. While the Steam Controller is in control, the DualSense's rumble and speaker are kept quiet; when it hands off, they come straight back.
+- **Pause any time.** Hold the Steam Controller's **…** button for 5 seconds, in a game or on the home screen, to pause Puckbridge so your DualSense works exactly as normal. Hold it again to resume. The controller buzzes to confirm.
 - **Remap portal** at `http://<PS5_IP>:8090`:
   - every input remappable, including the back grips, trackpad clicks, and the Steam button
   - Steam Input–style activators (long press, double press, shift layer, turbo, toggle)

@@ -54,3 +54,9 @@ int  sc2_find_active_ep(int fd, struct usb_fs_endpoint *eps,
  * *link is set to 0 on wireless disconnect, 1 on connect/input. */
 int  sc2_handle_packet(const uint8_t *buf, uint32_t len,
                        ScePadData *out_pad, int *link);
+
+/* Paused (hold … for 5 s, or the portal): the Steam Controller is still read,
+ * so the same hold resumes, but nothing is sent to the PS5 and the game hooks
+ * see it as switched off, so the DualSense is fully back in charge. */
+extern volatile int sc2_paused;
+void sc2_set_paused(int on);
