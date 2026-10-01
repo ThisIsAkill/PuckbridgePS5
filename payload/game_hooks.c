@@ -4,6 +4,7 @@
 #include "bridge/wireless_ds4.h"
 #include "sc2_profile.h"
 #include "sc2_haptics.h"
+#include "sc2_gyro.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,7 +82,7 @@ static void to_frame(const ScePadData *p, PbPublishFrame *f) {
     f->rx = p->rightStick.x; f->ry = p->rightStick.y;
     f->l2 = p->analogButtons.l2; f->r2 = p->analogButtons.r2;
     f->move_l = (abs((int)f->lx - 128) > 12 || abs((int)f->ly - 128) > 12);
-    f->move_r = (abs((int)f->rx - 128) > 12 || abs((int)f->ry - 128) > 12);
+    f->move_r = (abs((int)f->rx - 128) > 12 || abs((int)f->ry - 128) > 12) || sc2_gyro_moving;
     f->fingers = p->touchData.fingers;
     for (int i = 0; i < 2 && i < f->fingers; i++) {
         f->tx[i] = p->touchData.touch[i].x; f->ty[i] = p->touchData.touch[i].y; f->tid[i] = p->touchData.touch[i].finger;

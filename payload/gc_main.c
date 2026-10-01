@@ -50,6 +50,7 @@
 #include "webui.h"
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
+#include "sc2_gyro.h"
 #include "bridge_probe.h"
 #include "game_hooks.h"
 
@@ -826,6 +827,7 @@ main_loop: ;
             if (injected) game_hooks_feed(&pad, sc2_link);
             else if (!sc2_link) game_hooks_feed(NULL, 0);
             sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
+            sc2_gyro_service(fd, sc2_iface);
             if (was && !sc2_link) {
                 inject_pad(slot, &pad);                     /* release everything first */
                 sc2_vda_detach(slot, "controller asleep / out of range");
@@ -865,7 +867,7 @@ main_loop: ;
 
 reinit:
     if (usb_ready_notified) { notify("Puckbridge: slot[%d] controller disconnected", slot); usb_ready_notified=0; }
-    if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) { sc2_haptic_available = 0; sc2_menu_open = 0; }
+    if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) { sc2_haptic_available = 0; sc2_menu_open = 0; sc2_gyro_reset(); }
     memset(&stop,0,sizeof(stop)); stop.ep_index=0; ioctl(fd,USB_FS_STOP,&stop);
     if (out_opened) {
         memset(&fs_close,0,sizeof(fs_close)); fs_close.ep_index=1; ioctl(fd,USB_FS_CLOSE,&fs_close);

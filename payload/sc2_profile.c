@@ -44,6 +44,8 @@ static const struct { const char *n; uint32_t m; } k_out[] = {
 #define N_OUT ((int)(sizeof(k_out)/sizeof(k_out[0])))
 
 static const char *k_pad[] = { "OFF", "TOUCH", "STICK", "DPAD" };
+static const char *k_gyro[GYRO_MODES] = { "OFF", "ALWAYS", "GRIP", "GRIPS", "RPAD", "RSTICK" };
+static const char *k_gyro_axis[] = { "YAW", "ROLL" };
 
 volatile uint32_t sc2_live_inputs = 0;
 volatile int      sc2_live_connected = 0;
@@ -70,6 +72,9 @@ void sc2_profile_default(sc2_profile_t *p) {
     p->deadzone = 9;
     p->shift_in = -1;
     p->long_ms = 400; p->double_ms = 250; p->turbo_ms = 60;
+    p->gyro_mode = GYRO_OFF; p->gyro_axis = GYRO_AXIS_YAW;
+    p->gyro_sens_x = 20; p->gyro_sens_y = 16;
+    p->gyro_adz = 10;
 }
 
 static char *trim(char *s) {
@@ -145,6 +150,21 @@ void sc2_profile_parse(const char *text, sc2_profile_t *p) {
         else if (!strcasecmp(k, "DEADZONE")) {
             int d = atoi(v); if (d < 0) d = 0; if (d > 40) d = 40; p->deadzone = (uint8_t)d;
         }
+        else if (!strcasecmp(k, "GYRO")) {
+            for (int i = 0; i < GYRO_MODES; i++) if (!strcasecmp(v, k_gyro[i])) p->gyro_mode = (uint8_t)i;
+        }
+        else if (!strcasecmp(k, "GYRO_AXIS")) {
+            for (int i = 0; i < 2; i++) if (!strcasecmp(v, k_gyro_axis[i])) p->gyro_axis = (uint8_t)i;
+        }
+        else if (!strcasecmp(k, "GYRO_SENS_X") || !strcasecmp(k, "GYRO_SENS_Y")) {
+            int x = atoi(v); x = x < 1 ? 1 : x > 100 ? 100 : x;
+            if (k[10] == 'X' || k[10] == 'x') p->gyro_sens_x = (uint8_t)x; else p->gyro_sens_y = (uint8_t)x;
+        }
+        else if (!strcasecmp(k, "GYRO_INVERT_X")) p->gyro_invert_x = (uint8_t)(atoi(v) != 0);
+        else if (!strcasecmp(k, "GYRO_INVERT_Y")) p->gyro_invert_y = (uint8_t)(atoi(v) != 0);
+        else if (!strcasecmp(k, "GYRO_ANTI_DEADZONE")) {
+            int d = atoi(v); if (d < 0) d = 0; if (d > 40) d = 40; p->gyro_adz = (uint8_t)d;
+        }
     }
 }
 
@@ -173,6 +193,9 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
     PUT("LPAD=%s\nRPAD=%s\n", k_pad[p->lpad & 3], k_pad[p->rpad & 3]);
     PUT("INVERT_LY=%d\nINVERT_RY=%d\nSWAP_STICKS=%d\nDEADZONE=%d\n",
         p->invert_ly, p->invert_ry, p->swap_sticks, p->deadzone);
+    PUT("GYRO=%s\nGYRO_AXIS=%s\nGYRO_SENS_X=%d\nGYRO_SENS_Y=%d\nGYRO_INVERT_X=%d\nGYRO_INVERT_Y=%d\nGYRO_ANTI_DEADZONE=%d\n",
+        k_gyro[p->gyro_mode < GYRO_MODES ? p->gyro_mode : 0], k_gyro_axis[p->gyro_axis & 1],
+        p->gyro_sens_x, p->gyro_sens_y, p->gyro_invert_x, p->gyro_invert_y, p->gyro_adz);
 #undef PUT
     if (o >= n) o = n ? n - 1 : 0;
     return (int)o;
@@ -231,7 +254,7 @@ int sc2_store_load(const char *id, sc2_profile_t *p) {
     char path[128]; snprintf(path, sizeof(path), SC2_DIR "/%s.ini", id);
     FILE *f = fopen(path, "r");
     if (!f) return -1;
-    char buf[4096]; size_t n = fread(buf, 1, sizeof(buf)-1, f); buf[n] = 0;
+    char buf[8192]; size_t n = fread(buf, 1, sizeof(buf)-1, f); buf[n] = 0;
     fclose(f);
     sc2_profile_default(p);
     sc2_profile_parse(buf, p);
@@ -244,7 +267,7 @@ int sc2_store_save(const char *id, const sc2_profile_t *p) {
     char path[128], tmp[136];
     snprintf(path, sizeof(path), SC2_DIR "/%s.ini", id);
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
-    char buf[4096]; int n = sc2_profile_format(p, buf, sizeof(buf));
+    char buf[8192]; int n = sc2_profile_format(p, buf, sizeof(buf));
     FILE *f = fopen(tmp, "w");
     if (!f) return -1;
     size_t w = fwrite(buf, 1, (size_t)n, f);
