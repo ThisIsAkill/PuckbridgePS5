@@ -77,6 +77,8 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .ctl.live .s{fill:var(--accent)}
 .ctl.live .t{fill:#0f1a33}
 .ctl.sel .s{stroke:var(--text);stroke-width:3}
+.ctl.reserved{cursor:help}.ctl.reserved .s{stroke-dasharray:3 4}
+.row.reserved{cursor:default}
 .body{fill:#1a2131;stroke:var(--line);stroke-width:2}
 .legend{display:flex;gap:16px;justify-content:center;color:var(--muted);font-size:.85rem;margin-top:6px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -276,7 +278,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <h2>Menu on the console</h2>
         <p>Switch profiles or remap a button without leaving the game. Messages appear as PS5 notifications.</p>
         <ol>
-          <li>Bind <b>Puckbridge menu</b> to any button or activator (for example Quick access → Long press). Press it to open or close.</li>
+          <li>Bind <b>Puckbridge menu</b> to any button or activator (for example View → Long press). Press it to open or close.</li>
           <li><b>D-pad up/down</b> chooses, <b>left/right</b> changes profile, <b>A</b> selects, <b>B</b> closes.</li>
           <li>To remap: pick <b>Remap a button</b>, press the button to change, then press the button it should act as. It saves to the current game's profile.</li>
         </ol>
@@ -326,7 +328,8 @@ const GROUPS=[["Face buttons",["A","B","X","Y"]],["Shoulders and triggers",["LB"
 const BITS=["A","B","X","Y","LB","RB","LT","RT","L3","R3","DUP","DDOWN","DLEFT","DRIGHT","VIEW","MENU","STEAM","QAM","L4","L5","R4","R5","LPAD_CLICK","RPAD_CLICK"];
 const OUTS=[["CROSS","Cross"],["CIRCLE","Circle"],["SQUARE","Square"],["TRIANGLE","Triangle"],["L1","L1"],["R1","R1"],["L2","L2"],["R2","R2"],["L3","L3"],["R3","R3"],["UP","Up"],["DOWN","Down"],["LEFT","Left"],["RIGHT","Right"],["OPTIONS","Options"],["CREATE","Create"],["PS","PS"],["TOUCHPAD","Touchpad"],["PB_MENU","Puckbridge menu"]];
 const OUTNAME=Object.fromEntries(OUTS);
-const DEFAULTS={A:"CROSS",B:"CIRCLE",X:"SQUARE",Y:"TRIANGLE",LB:"L1",RB:"R1",LT:"L2",RT:"R2",L3:"L3",R3:"R3",DUP:"UP",DDOWN:"DOWN",DLEFT:"LEFT",DRIGHT:"RIGHT",VIEW:"CREATE",MENU:"OPTIONS",STEAM:"PS",QAM:"TOUCHPAD",L4:"L3",L5:"L1+R1",R4:"R3",R5:"L3+R3",LPAD_CLICK:"TOUCHPAD",RPAD_CLICK:"TOUCHPAD"};
+const DEFAULTS={A:"CROSS",B:"CIRCLE",X:"SQUARE",Y:"TRIANGLE",LB:"L1",RB:"R1",LT:"L2",RT:"R2",L3:"L3",R3:"R3",DUP:"UP",DDOWN:"DOWN",DLEFT:"LEFT",DRIGHT:"RIGHT",VIEW:"CREATE",MENU:"OPTIONS",STEAM:"PS",QAM:"NONE",L4:"L3",L5:"L1+R1",R4:"R3",R5:"L3+R3",LPAD_CLICK:"TOUCHPAD",RPAD_CLICK:"TOUCHPAD"};
+const RESERVED="QAM", RESERVED_TXT="Reserved: hold 5 s to pause or resume Puckbridge";
 const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
 
 /* controller diagram: [key, shape, label] — shape: c(cx,cy,r) or r(x,y,w,h,rx) */
@@ -380,22 +383,24 @@ function buildPad(){
     const title=document.createElementNS(NS,"title");g.appendChild(title);
     g.onclick=()=>openSheet(k);
     g.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(k)}};
+    if(k===RESERVED)g.classList.add("reserved");
     g.onmouseenter=g.onfocus=()=>showCaption(k);
     svg.appendChild(g);
   });
 }
-function showCaption(k){const x=extras(k);$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(comboText(cur[k]))}${x.length?` <span style="color:var(--muted)">· ${esc(x.join(" · "))}</span>`:""}`}
+function showCaption(k){if(k===RESERVED){$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(RESERVED_TXT)}`;return}const x=extras(k);$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(comboText(cur[k]))}${x.length?` <span style="color:var(--muted)">· ${esc(x.join(" · "))}</span>`:""}`}
 function paintPad(){
-  $$(".ctl").forEach(g=>{const k=g.dataset.k;g.classList.toggle("changed",norm(cur[k])!==norm(DEFAULTS[k])||extras(k).length>0);
+  $$(".ctl").forEach(g=>{const k=g.dataset.k;if(k===RESERVED){g.querySelector("title").textContent=`${LABEL[k]}: ${RESERVED_TXT}`;g.setAttribute("aria-label",`${LABEL[k]}, ${RESERVED_TXT}`);return}g.classList.toggle("changed",norm(cur[k])!==norm(DEFAULTS[k])||extras(k).length>0);
     g.querySelector("title").textContent=`${LABEL[k]} → ${comboText(cur[k])}`;g.setAttribute("aria-label",`${LABEL[k]}, does ${comboText(cur[k])}`)});
 }
 
 /* ── list ── */
 function renderList(){
   $("#list").innerHTML=GROUPS.map(([t,keys])=>`<div class="group"><h3>${t}</h3>${keys.map(k=>{const c=combo(cur[k]);
+    if(k===RESERVED)return `<div class="row reserved" data-k="${k}"><span class="phys">${esc(LABEL[k])}</span><span class="chips"><span class="tag">${esc(RESERVED_TXT)}</span></span></div>`;
     return `<div class="row" tabindex="0" role="button" data-k="${k}"><span class="phys">${esc(LABEL[k])}</span><span class="chips">${
       c.length?c.map(o=>`<span class="chip c-${o}">${esc(OUTNAME[o]||o)}</span>`).join(""):'<span class="chip none">Nothing</span>'}${extras(k).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</span></div>`}).join("")}</div>`).join("");
-  $$(".row").forEach(r=>{r.onclick=()=>openSheet(r.dataset.k);r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(r.dataset.k)}};r.onmouseenter=()=>showCaption(r.dataset.k)});
+  $$(".row").forEach(r=>{if(r.dataset.k===RESERVED){r.onmouseenter=()=>showCaption(RESERVED);return}r.onclick=()=>openSheet(r.dataset.k);r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(r.dataset.k)}};r.onmouseenter=()=>showCaption(r.dataset.k)});
 }
 function renderOpts(){
   $$(".seg").forEach(seg=>{const k=seg.dataset.k;seg.innerHTML="";
@@ -403,7 +408,7 @@ function renderOpts(){
   $$("input[type=checkbox][data-k]").forEach(i=>{i.checked=cur[i.dataset.k]==="1";i.onchange=()=>{cur[i.dataset.k]=i.checked?"1":"0";dirty()}});
   const dz=$("input[data-k=DEADZONE]");dz.value=cur.DEADZONE||9;$("#dzv").textContent=dz.value+"%";
   dz.oninput=()=>{cur.DEADZONE=dz.value;$("#dzv").textContent=dz.value+"%";dirty()};
-  const ss=$("#shiftSel");ss.innerHTML='<option value="NONE">None</option>'+BITS.map(k=>`<option value="${k}">${esc(LABEL[k])}</option>`).join("");
+  const ss=$("#shiftSel");ss.innerHTML='<option value="NONE">None</option>'+BITS.filter(k=>k!==RESERVED).map(k=>`<option value="${k}">${esc(LABEL[k])}</option>`).join("");
   ss.value=cur.SHIFT||"NONE";ss.onchange=()=>{cur.SHIFT=ss.value;render()};
   $$("input[data-r]").forEach(r=>{const k=r.dataset.r,def={LONG_MS:400,DOUBLE_MS:250,TURBO_MS:60}[k];
     r.value=cur[k]||def;$(`b[data-v=${k}]`).textContent=r.value+" ms";
@@ -420,6 +425,7 @@ const ACTS=[["","Press","Sends these while held. Pick several for a combo."],
 let draft={},act="";
 function actsFor(k){return ACTS.filter(a=>a[0]!==".full"||k==="LT"||k==="RT").filter(a=>a[0]!==".shift"||cur.SHIFT&&cur.SHIFT!=="NONE"&&cur.SHIFT!==k)}
 function openSheet(k){
+  if(k===RESERVED){showCaption(k);toast("… is reserved: hold it for 5 seconds to pause or resume Puckbridge");return}
   sheetKey=k;$("#sheetT").textContent=LABEL[k];
   draft={};ACTS.forEach(([a])=>draft[a]=new Set(combo(cur[k+a])));
   draft.turbo=cur[k+".turbo"]==="1";draft.toggle=cur[k+".toggle"]==="1";

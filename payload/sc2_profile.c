@@ -61,7 +61,7 @@ void sc2_profile_default(sc2_profile_t *p) {
     p->map[IN_DUP] = SCE_PAD_BUTTON_UP;     p->map[IN_DDOWN] = SCE_PAD_BUTTON_DOWN;
     p->map[IN_DLEFT] = SCE_PAD_BUTTON_LEFT; p->map[IN_DRIGHT] = SCE_PAD_BUTTON_RIGHT;
     p->map[IN_VIEW] = SCE_PAD_BUTTON_SHARE; p->map[IN_MENU] = SCE_PAD_BUTTON_OPTIONS;
-    p->map[IN_STEAM] = SCE_PAD_BUTTON_PS;   p->map[IN_QAM] = SCE_PAD_BUTTON_TOUCH_PAD;
+    p->map[IN_STEAM] = SCE_PAD_BUTTON_PS;   /* … (IN_QAM) is reserved for pause/resume */
     p->map[IN_L4] = SCE_PAD_BUTTON_L3;      p->map[IN_L5] = SCE_PAD_BUTTON_L1 | SCE_PAD_BUTTON_R1;
     p->map[IN_R4] = SCE_PAD_BUTTON_R3;      p->map[IN_R5] = SCE_PAD_BUTTON_L3 | SCE_PAD_BUTTON_R3;
     p->map[IN_LPAD_CLICK] = SCE_PAD_BUTTON_TOUCH_PAD;
@@ -146,6 +146,10 @@ void sc2_profile_parse(const char *text, sc2_profile_t *p) {
             int d = atoi(v); if (d < 0) d = 0; if (d > 40) d = 40; p->deadzone = (uint8_t)d;
         }
     }
+    /* … is reserved for pause/resume: drop anything older profiles bound to it */
+    p->map[IN_QAM] = p->lng[IN_QAM] = p->dbl[IN_QAM] = p->shf[IN_QAM] = 0;
+    p->turbo[IN_QAM] = p->toggle[IN_QAM] = 0;
+    if (p->shift_in == IN_QAM) p->shift_in = -1;
 }
 
 int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {

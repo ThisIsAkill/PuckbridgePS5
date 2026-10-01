@@ -8,7 +8,7 @@ Plug the **Puck** (28de:1304) into a PS5 USB port. A USB-C cable (28de:1302) als
 3. On your phone or PC (same network): **http://<PS5_IP>:8090**
 
 ## Remap portal
-- Every button can be remapped, including grips, trackpad clicks, Steam and `...`.
+- Every button can be remapped, including grips, trackpad clicks and Steam. **…** is reserved for pausing (below).
 - Pick several PS buttons for one input to make a combo.
 - Press a button on the controller and its row lights up.
 - Trackpads can be set to Touchpad, Stick, D-pad or Off. Also: invert Y, swap sticks, deadzone.
@@ -31,10 +31,10 @@ Any activator can combine several PS5 buttons. Timings (long press, double press
 ## Pause and resume
 Hold **…** (Quick access) for 5 seconds, anywhere: in a game, on the home screen, or in a menu. Puckbridge pauses: the Steam Controller's virtual controller is removed and nothing it does reaches the PS5, and in hooked games the DualSense gets its haptics, speaker and input back exactly as if the Steam Controller were off. A long buzz confirms it. Hold **…** for 5 seconds again to resume (short buzz). The portal's header shows *Paused*, and *Settings & help → Pause Puckbridge* has a button that does the same.
 
-While you hold **…**, it still sends its normal binding (Touchpad by default) until the pause kicks in, and a short tap works as usual. After resuming, **…** does nothing until you let go, so resuming never presses Touchpad. Pausing doesn't survive reloading the payload.
+**…** is reserved for this: it never sends anything to the PS5 and can't be remapped (Touchpad is on both trackpad clicks). Bindings saved on it by older versions are dropped. Pausing doesn't survive reloading the payload.
 
 ## On-console menu
-Bind **Puckbridge menu** to any input or activator (e.g. Quick access → Long press), then press it in-game.
+Bind **Puckbridge menu** to any input or activator (e.g. View → Long press), then press it in-game.
 D-pad up/down chooses, left/right changes profile, A selects, B closes. *Remap a button* saves to the running game's profile.
 
 ## Using it alongside a DualSense

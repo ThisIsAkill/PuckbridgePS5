@@ -271,8 +271,8 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
     int64_t now = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 
-    /* 1a. hold … for 5 s anywhere: pause / resume Puckbridge. After it fires,
-     *     … stays masked until released, so resuming doesn't press Touchpad. */
+    /* 1a. … is reserved for Puckbridge: hold it 5 s anywhere to pause /
+     *     resume. It never reaches bindings, the menu or the PS5. */
     static int64_t qam_since = 0;
     static int qam_latched = 0;
     if (in & (1u << IN_QAM)) {
@@ -285,7 +285,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
         qam_since = 0;
         qam_latched = 0;
     }
-    if (qam_latched) in &= ~(1u << IN_QAM);
+    in &= ~(1u << IN_QAM);
     if (sc2_paused) return 0;                 /* nothing reaches the PS5 */
 
 #ifndef SC2_RAW_LOG
