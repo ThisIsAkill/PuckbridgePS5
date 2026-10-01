@@ -1,50 +1,77 @@
 # PuckbridgePS5
 
-Use the **Steam Controller (2026)** wirelessly on a jailbroken PS5, with a phone-friendly web portal for remapping every button and per-game profiles.
+Use the **Steam Controller (2026)** on a jailbroken PS5 — as your main controller in real games, with rumble, and a phone-friendly web portal for remapping and per-game profiles.
 
-Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-Controller-Patcher) by StonedModder, which injects third-party USB controllers into the PS5 as a virtual DualSense. All original controller support (8BitDo / Switch Pro, Xbox One / Series) is still here.
+Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-Controller-Patcher) by StonedModder, which injects third-party USB controllers into the PS5 as a virtual DualSense. All of its original controller support (8BitDo / Switch Pro, Xbox One / Series) is still here.
 
-## Features
-- Steam Controller (2026) over its **Puck** (wireless) or USB-C cable.
-- Original Steam Controller (2015), wired.
+> Not affiliated with Valve or Sony. For use with games you own.
+
+## What works
+
+- **Steam Controller (2026)** over its wireless **Puck**, or the original Steam Controller (2015) over USB.
+- **Plays real games (PS4 and PS5).** The controller appears to the PS5 as a normal controller, so every game accepts it with no per-game setup.
+- **Rumble in games**, including PS5 titles like *Returnal* that drive the DualSense through audio rather than the classic vibration call — Puckbridge forwards that to the Steam Controller's grip motors.
+- **Hand-off to the DualSense.** Turn the Steam Controller off (or let it sleep) and your DualSense takes over the game normally. Wake the Steam Controller with its **Steam** button and it takes back over. While the Steam Controller is in control, the DualSense's rumble and speaker are kept quiet; when it hands off, they come straight back.
 - **Remap portal** at `http://<PS5_IP>:8090`:
-  - every input remappable, including back grips, trackpad clicks, Steam and `...`
-  - multi-button combos on any input
+  - every input remappable, including the back grips, trackpad clicks, and the Steam button
+  - Steam Input–style activators (long press, double press, shift layer, turbo, toggle)
   - press a button on the controller to find it in the list
-  - trackpads as touchpad, stick, d-pad or off; invert Y, swap sticks, deadzone
+  - trackpads as touchpad, stick, d-pad, or off; invert Y, swap sticks, deadzone
   - **per-game profiles** that switch automatically by title ID
-  - built-in log viewer for troubleshooting
-- Profiles are plain text in `/data/ghostpad/profiles/`.
+  - an on-console menu (PS5 notifications) to switch profiles or remap without leaving the game
+  - a built-in log viewer for troubleshooting
+- Profiles and settings are plain text in `/data/ghostpad/`.
+
+## What doesn't (and why)
+
+- **Adaptive triggers** — the 2026 Steam Controller has plain mechanical triggers with no resistance motors, so the DualSense's adaptive-trigger effects cannot be reproduced. This is a hardware limit, not a software one.
+- **DualSense turning off by itself** — to switch to the DualSense you turn the Steam Controller off yourself. Powering the DualSense off automatically needs to address it from the payload, which isn't currently possible on this firmware. (Tip: *Settings → System → Power Saving → Set Time Until Controllers Turn Off* auto-sleeps an idle DualSense.)
+- **Haptic texture** — rumble is conveyed as intensity, not the DualSense's full waveform, so effects feel coarser than on a DualSense.
+- **Two controllers controlling one game at once** isn't supported; it's one at a time (see hand-off above).
 
 ## Requirements
-- PS5 with a kernel exploit and an ELF loader on port 9021 (tested target: firmware 13.60 + etaHEN).
-- [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) to build.
+
+- A jailbroken PS5 with an ELF loader on port **9021** (tested: firmware **13.60**).
+- The Steam Controller's Puck (or a USB cable).
+- To build from source: [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk).
+
+## Install and use
+
+1. Download `ghost-control-ps5.elf` from the [latest release](https://github.com/ThisIsAkill/PuckbridgePS5/releases/latest).
+2. Jailbreak the PS5 and start its payload/ELF loader, then send the payload:
+   ```sh
+   nc -w 5 <PS5_IP> 9021 < ghost-control-ps5.elf
+   ```
+3. Plug in the Puck and turn on the Steam Controller.
+4. Open **`http://<PS5_IP>:8090`** from a phone or PC on the same network.
+
+The recommended settings are on by default. If you ever change them, open **Settings & help → Quick setup → Use recommended settings** to restore them.
+
+### Playing a game
+- Launch any game and play with the Steam Controller.
+- For rumble in a game, the portal's *Move DualSense haptics and speaker* option must be on (it is by default). It hooks the game as it starts, so if you change it, restart the game.
+- To switch to the DualSense, turn the Steam Controller off. To switch back, press the Steam button.
+
+> Back up save data before playing. In-game rumble works by hooking the running game; it's well-tested on *Returnal* but new games are worth trying carefully.
 
 ## Build
+
 ```sh
 export PS5_PAYLOAD_SDK=/path/to/ps5-payload-sdk
 cd payload && make
 ```
-Output: `payload/ghost-control-ps5.elf`. The portal UI lives in `payload/web/index.html` and is embedded at build time.
+Output: `payload/ghost-control-ps5.elf`. Pushing a `v*` tag builds it on GitHub Actions and publishes a release automatically (`.github/workflows/release.yml`). The portal UI lives in `payload/web/index.html`; after editing it, run `python3 gen_html.py` to re-embed it, then rebuild.
 
-## Use
-```sh
-nc -w 5 <PS5_IP> 9021 < ghost-control-ps5.elf
-```
-Plug in the Puck, turn on the controller, open `http://<PS5_IP>:8090`.
-See [STEAM_CONTROLLER_2026.md](STEAM_CONTROLLER_2026.md) for the mapping and troubleshooting.
-
-## Status
-Builds cleanly. The portal and profile engine are tested off-console. On-console testing with the Puck is in progress.
+See [STEAM_CONTROLLER_2026.md](STEAM_CONTROLLER_2026.md) for the full mapping reference and troubleshooting.
 
 ## Credits
+
 - Ghostcontrol virtual DualSense injection: StonedModder
 - Steam Controller (2026) protocol: Linux `hid-steam` driver (Vicki Pfau et al.) and SDL
-- PS5 payload SDK: ps5-payload-dev
 - Game bridge (vendored in `payload/bridge/`): [PoorDS4](https://github.com/ItsBlurf/PoorDS4) by ItsBlurf
+- PS5 payload SDK: ps5-payload-dev
 
 ## License
+
 GPL-3.0-or-later, same as upstream. See [LICENSE](LICENSE).
 The original upstream README is kept in [README.upstream.md](README.upstream.md).
-
-Not affiliated with Valve or Sony. For use with games you own.

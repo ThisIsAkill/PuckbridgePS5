@@ -7,30 +7,36 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <style>
+
 :root{
-  --bg:#151b29; --panel:#1e2637; --panel2:#262f45; --line:#34405b; --text:#eef1f7; --muted:#9aa4ba;
-  --cross:#7aa7ff; --circle:#ff7a7a; --square:#f29ad4; --triangle:#5fd3a6;
-  --accent:var(--cross); --r:14px;
+  --bg:#0f1420; --panel:#181f30; --panel2:#212a3f; --panel3:#2a3450; --line:#2f3a54;
+  --text:#eef1f7; --muted:#97a2bb;
+  --cross:#6f9bff; --circle:#ff7a7a; --square:#f29ad4; --triangle:#5fd3a6;
+  --accent:#6f9bff; --accent2:#8f7aff; --ok:#5fd3a6;
+  --r:16px; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.22);
   font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text)}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(1100px 600px at 80% -10%,rgba(111,155,255,.10),transparent 60%),radial-gradient(900px 500px at -10% 10%,rgba(143,122,255,.08),transparent 55%)}
 body{font-size:16px;line-height:1.45;padding:env(safe-area-inset-top) 0 calc(84px + env(safe-area-inset-bottom));overflow-y:scroll}
 .wrap{max-width:1240px;margin:0 auto;padding:0 20px}
 button,select,input{font:inherit;color:inherit}
-button{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 14px;min-height:42px;cursor:pointer}
-button:hover{border-color:#4a5877}
-button.primary{background:var(--accent);border-color:var(--accent);color:#0f1a33;font-weight:700}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px 15px;min-height:42px;cursor:pointer;transition:background .12s,border-color .12s,transform .04s}
+button:hover{border-color:#4a5877;background:var(--panel3)}
+button:active{transform:translateY(1px)}
+button.primary{background:linear-gradient(180deg,var(--accent),#5b86f0);border-color:transparent;color:#0b1120;font-weight:700;box-shadow:0 4px 14px rgba(111,155,255,.3)}
+button.primary:hover{background:linear-gradient(180deg,#83abff,var(--accent))}
 button.ghost{background:transparent}
 button.danger{color:var(--circle)}
 button:disabled{opacity:.45;cursor:default}
-select,input[type=search]{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-height:42px}
+select,input[type=search]{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px 12px;min-height:42px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* header */
-header{position:sticky;top:0;z-index:4;background:rgba(21,27,41,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header{position:sticky;top:0;z-index:4;background:rgba(15,20,32,.82);backdrop-filter:blur(14px) saturate(1.2);border-bottom:1px solid var(--line)}
 .head{display:flex;align-items:center;gap:16px;height:60px}
-.brand{font-weight:700;font-size:1.15rem;letter-spacing:-.01em;margin-right:auto;white-space:nowrap}
+.brand{font-weight:700;font-size:1.18rem;letter-spacing:-.01em;margin-right:auto;white-space:nowrap;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .brand small{color:var(--muted);font-weight:400;margin-left:8px}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--muted);white-space:nowrap}
 .dot{width:9px;height:9px;border-radius:50%;background:#5a6378;flex:none}
@@ -38,7 +44,8 @@ header{position:sticky;top:0;z-index:4;background:rgba(21,27,41,.92);backdrop-fi
 nav.tabs{display:flex;gap:4px}
 nav.tabs button{background:transparent;border-color:transparent;color:var(--muted)}
 .short{display:none}
-nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--line);color:var(--text);font-weight:700}
+nav.tabs button{border-radius:11px}
+nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--line);color:var(--text);font-weight:700;box-shadow:inset 0 0 0 1px rgba(111,155,255,.25)}
 
 /* now playing */
 .now{display:grid;grid-template-columns:72px 1fr auto;gap:16px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:20px 0}
@@ -53,7 +60,7 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
 .toolbar select{flex:1 1 220px;min-width:0}
 .grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px;align-items:start}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
 .pad{padding:16px;position:sticky;top:80px}
 .pad svg{width:100%;height:auto;display:block}
 .caption{height:28px;margin-top:8px;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -91,7 +98,10 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
 .seg button{border:0;border-radius:0;min-height:34px;padding:5px 10px;background:transparent;font-size:.88rem}
 .seg button[aria-pressed=true]{background:var(--accent);color:#0f1a33;font-weight:700}
-input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent)}
+input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;width:48px;height:28px;border-radius:999px;background:var(--panel3);border:1px solid var(--line);cursor:pointer;flex:none;transition:background .15s}
+input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#cdd5e6;transition:transform .15s}
+input[type=checkbox]:checked{background:linear-gradient(180deg,var(--accent),#5b86f0);border-color:transparent}
+input[type=checkbox]:checked::after{transform:translateX(20px);background:#fff}
 input[type=range]{width:150px;accent-color:var(--accent)}
 
 /* games */
@@ -172,7 +182,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-tab="remap">Remap</button>
       <button role="tab" aria-selected="false" data-tab="games">Games</button>
-      <button role="tab" aria-selected="false" data-tab="help"><span class="long">Vibration &amp; help</span><span class="short">Help</span></button>
+      <button role="tab" aria-selected="false" data-tab="help"><span class="long">Settings &amp; help</span><span class="short">Settings</span></button>
     </nav>
     <span class="pill"><span class="dot" id="dot"></span><span id="conn">Connecting…</span></span>
   </div>
@@ -231,6 +241,11 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
   <!-- HELP -->
   <section id="tab-help" hidden>
     <div class="help">
+      <div class="card" style="grid-column:1/-1">
+        <h2>Quick setup</h2>
+        <p>Recommended: play with the Steam Controller as your main controller, with game rumble sent to it. Turn the Steam Controller off at any time and your DualSense takes over; wake the Steam Controller with its <b>Steam</b> button to switch back.</p>
+        <div class="btns"><button class="primary" id="ghRec">Use recommended settings</button></div>
+      </div>
       <div class="card">
         <h2>In games</h2>
         <label class="opt" style="padding:8px 0;border:0"><span><b>Use the Steam Controller in games</b><br><small style="color:var(--muted)">Merges it into your player's controller, so it works alongside the DualSense.</small></span><input type="checkbox" id="ghIn"></label>
@@ -560,6 +575,7 @@ $("#ghIn").onchange=e=>setHooks("input="+(e.target.checked?1:0));
 $("#ghVib").onchange=e=>setHooks("vibration="+(e.target.checked?1:0));
 $("#ghMode").onchange=e=>setHooks("mode="+e.target.value);
 $("#ghAud").onchange=e=>{setHooks("audio="+(e.target.checked?1:0));toast("Restart the game for this to take effect")};
+$("#ghRec").onclick=()=>{setHooks("input=0&vibration=1&audio=1&mode=2");toast("Recommended settings applied — restart the game")};
 setInterval(()=>{if(!$("#tab-help").hidden)paintHooks()},1000);
 
 /* ── game bridge check ── */

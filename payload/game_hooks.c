@@ -17,7 +17,7 @@ void ghostpad_status_log(const char *fmt, ...);
 #define SETTINGS "/data/ghostpad/settings.ini"
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
-static volatile int g_input_on = 1, g_vibe_on = 1, g_mode = 1, g_audio_on = 1;   /* mode: 0 both, 1 last used, 2 SC2 only */
+static volatile int g_input_on = 0, g_vibe_on = 1, g_mode = 2, g_audio_on = 1;   /* recommended defaults */   /* mode: 0 both, 1 last used, 2 SC2 only */
 static volatile int g_owner = 0;
 static ScePadData g_pad; static volatile int g_pad_conn = 0; static volatile uint32_t g_pad_seq = 0;
 static volatile int g_active = 0;

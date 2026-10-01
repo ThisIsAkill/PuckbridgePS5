@@ -6704,7 +6704,7 @@ game_cache_find_table(
 
 #define PB_MAGIC       0x42505550u   /* "PUPB" */
 #define PB_MAX_HOOKS   16u
-#define PB_LAYOUT_VERSION 3u         /* bump whenever PbArgs changes */
+#define PB_LAYOUT_VERSION 4u         /* bump whenever PbArgs OR the stub code changes */
 #define PB_MAX_PORTS   24u
 #define PB_ZERO_BYTES  32768u
 _Static_assert(GB_KINDS <= 16u, "PbArgs.orig too small");
@@ -7105,26 +7105,52 @@ pb_hooks_install_locked(int want_input, int want_vibe, int want_audio, pid_t *ou
     g_gb_kind_limit = 7u;
     if (scan != 0) { snprintf(why, why_n, "import scan failed (game still loading?)"); return -4; }
 
-    /* Earlier Puckbridge hooks still in this game? (A new payload kills the
-     * old one without unhooking.) Re-use its shared page instead of stacking. */
+    /* Hooks from an earlier Puckbridge run may still be in this game (a new
+     * payload kills the old one without unhooking). Decide what to do by
+     * looking at any slot that points to one of our gateways:
+     *   - same layout version  → the stub code is identical; re-use the page.
+     *   - different version     → old stub code; strip every one of our hooks
+     *                             (restore the slot to the original export we
+     *                             already resolved) and install fresh below.
+     * Detection reads only magic+version at offset 0 of the old page, so it
+     * does not depend on the old page's field layout. */
+    int pb_found = 0; uint32_t pb_ver = 0; intptr_t pb_args = 0;
     for (uint32_t i = 0; i < hook_count; i++) {
         uint64_t cur = 0; uint8_t gwb[16];
         if (game_bridge_process_read(target, hooks[i].slot, &cur, sizeof(cur)) != 0) continue;
         if (cur == (uint64_t)hooks[i].original) continue;
         if (game_bridge_process_read(target, (intptr_t)cur, gwb, sizeof(gwb)) != 0) continue;
-        if (gwb[0] != 0x48 || gwb[1] != 0x8d || (gwb[2] != 0x15 && gwb[2] != 0x0d) || gwb[7] != 0xe9) continue;
+        if (gwb[1] != 0x8d || gwb[7] != 0xe9) continue;        /* lea reg,[rip+d]; jmp */
         int32_t rel; memcpy(&rel, gwb + 3, 4);
         intptr_t old_args = (intptr_t)cur + 7 + rel;
         uint32_t hdr[2] = {0, 0};
         if (game_bridge_process_read(target, old_args, hdr, sizeof(hdr)) == 0 && hdr[0] == PB_MAGIC) {
-            if (hdr[1] != PB_LAYOUT_VERSION) {
-                snprintf(why, why_n, "hooked by an older Puckbridge build: restart the game");
-                return -14;
-            }
-            *out_args = old_args;
-            snprintf(why, why_n, "re-using hooks from an earlier Puckbridge run");
-            return 1;
+            pb_found = 1; pb_ver = hdr[1]; pb_args = old_args; break;
         }
+    }
+    if (pb_found && pb_ver == PB_LAYOUT_VERSION) {
+        *out_args = pb_args;
+        snprintf(why, why_n, "re-using hooks from an earlier Puckbridge run");
+        return 1;
+    }
+    if (pb_found) {
+        uint32_t stripped = 0;
+        for (uint32_t i = 0; i < hook_count; i++) {
+            uint64_t cur = 0; uint8_t gwb[16];
+            if (game_bridge_process_read(target, hooks[i].slot, &cur, sizeof(cur)) != 0) continue;
+            if (cur == (uint64_t)hooks[i].original) continue;
+            if (game_bridge_process_read(target, (intptr_t)cur, gwb, sizeof(gwb)) != 0) continue;
+            if (gwb[1] != 0x8d || gwb[7] != 0xe9) continue;
+            int32_t rel; memcpy(&rel, gwb + 3, 4);
+            uint32_t magic = 0;
+            if (game_bridge_process_read(target, (intptr_t)cur + 7 + rel, &magic, sizeof(magic)) != 0 || magic != PB_MAGIC)
+                continue;
+            uint64_t orig = (uint64_t)hooks[i].original; int64_t st[9];
+            if (poords4_remote_cow_write(target, hooks[i].slot, &orig, sizeof(orig), (int)hooks[i].protection, st) == 0)
+                stripped++;
+        }
+        /* re-read slots so the filter below sees the restored originals */
+        snprintf(why, why_n, "replaced hooks from an older Puckbridge build (%u)", stripped);
     }
     /* keep only untouched slots from here on; never stack on someone else's hook */
     {
@@ -7204,7 +7230,8 @@ pb_hooks_install_locked(int want_input, int want_vibe, int want_audio, pid_t *ou
         patched++;
     }
     *out_args = args_addr;
-    snprintf(why, why_n, "hooked %u input, %u vibration, %u audio import slot(s)", n_in, n_vib, n_aud);
+    if (pb_found) snprintf(why, why_n, "replaced older build: hooked %u input, %u vibration, %u audio slot(s)", n_in, n_vib, n_aud);
+    else snprintf(why, why_n, "hooked %u input, %u vibration, %u audio import slot(s)", n_in, n_vib, n_aud);
     return 1;
 
 rollback:
