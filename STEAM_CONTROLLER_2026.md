@@ -35,6 +35,11 @@ D-pad up/down chooses, left/right changes profile, A selects, B closes. *Remap a
 ## Using it alongside a DualSense
 The Steam Controller only appears to the PS5 while it's switched on. When it sleeps or turns off, its virtual controller is removed. So the PS5 never waits for it (e.g. after rest mode), and a DualSense keeps working next to it.
 
+**DualSense hand-off (experimental, off by default):** turn on *Settings & help → DualSense hand-off* and the DualSense is disconnected from the console the first time you use the Steam Controller after it turns on, so the DualSense can't rumble, light up or play sound. Press the DualSense's PS button to bring it back; it then stays connected until the Steam Controller is turned off and on again.
+- Puckbridge learns which controller is the DualSense from the system log, either when the DualSense turns on or when a game opens it. If it hasn't seen it yet, it skips that time: start a game, or turn the DualSense off and on once.
+- If more than one physical controller is on (a second player), it does nothing, so it never turns off the wrong controller.
+- The card on the Settings tab shows what happened last, and the log records each step.
+
 ## Game bridge check (PoorDS4)
 Game vibration, and input that doesn't need a virtual controller, both depend on PoorDS4's method: redirecting the game's own controller calls. About 8 seconds after a game starts, the payload runs PoorDS4's checks in read-only mode, so nothing is written to the game. Results show in *Vibration & help → Game bridge check*, and the full report is saved to `/data/ghostpad/bridge-probe-<TITLE_ID>.txt`.
 

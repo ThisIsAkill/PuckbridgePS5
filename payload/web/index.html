@@ -246,6 +246,11 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <p>Recommended: play with the Steam Controller as your main controller, with game rumble sent to it. Turn the Steam Controller off at any time and your DualSense takes over; wake the Steam Controller with its <b>Steam</b> button to switch back.</p>
         <div class="btns"><button class="primary" id="ghRec">Use recommended settings</button></div>
       </div>
+      <div class="card" style="grid-column:1/-1">
+        <h2>DualSense hand-off</h2>
+        <label class="opt" style="padding:8px 0;border:0"><span><b>Turn the DualSense off while the Steam Controller is in control</b><br><small style="color:var(--muted)">When you start using the Steam Controller, the DualSense is disconnected, so it can't rumble, light up or play sound. Press its PS button to bring it back; it then stays on until the Steam Controller is turned off and on again. Experimental.</small></span><input type="checkbox" id="dsOff"></label>
+        <p id="dsStatus" style="min-height:1.4em;margin:4px 0 0">&nbsp;</p>
+      </div>
       <div class="card">
         <h2>In games</h2>
         <label class="opt" style="padding:8px 0;border:0"><span><b>Use the Steam Controller in games</b><br><small style="color:var(--muted)">Merges it into your player's controller, so it works alongside the DualSense.</small></span><input type="checkbox" id="ghIn"></label>
@@ -576,7 +581,23 @@ $("#ghVib").onchange=e=>setHooks("vibration="+(e.target.checked?1:0));
 $("#ghMode").onchange=e=>setHooks("mode="+e.target.value);
 $("#ghAud").onchange=e=>{setHooks("audio="+(e.target.checked?1:0));toast("Restart the game for this to take effect")};
 $("#ghRec").onclick=()=>{setHooks("input=0&vibration=1&audio=1&mode=2");toast("Recommended settings applied — restart the game")};
-setInterval(()=>{if(!$("#tab-help").hidden)paintHooks()},1000);
+setInterval(()=>{if(!$("#tab-help").hidden){paintHooks();paintDs()}},1000);
+
+/* ── DualSense hand-off ── */
+async function paintDs(){
+  let d;try{d=JSON.parse(await api("/api/dualsense"))}catch(e){return}
+  $("#dsOff").checked=!!d.enabled;
+  const seen=d.pads?"":" The DualSense hasn't been identified yet: start a game, or turn the DualSense off and on once.";
+  $("#dsStatus").textContent=!d.enabled?"Off.":({
+    idle:"Ready. The DualSense turns off the first time you use the Steam Controller after it turns on."+seen,
+    no_id:"Skipped this time: the DualSense hasn't been identified yet. Start a game, or turn the DualSense off and on once.",
+    several:"Skipped this time: more than one controller is on, so Puckbridge won't guess which one to turn off.",
+    working:"Turning the DualSense off…",
+    off:"DualSense is off. Press its PS button to bring it back.",
+    back:"DualSense is back. It stays on until the Steam Controller is turned off and on again.",
+    failed:`Couldn't turn the DualSense off (error ${d.ret}). Please send the log.`}[d.state]||"");
+}
+$("#dsOff").onchange=async e=>{try{await api("/api/dualsense?on="+(e.target.checked?1:0),{method:"POST"});paintDs()}catch(err){toast(err.message)}};
 
 /* ── game bridge check ── */
 async function paintBridge(){

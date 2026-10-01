@@ -50,6 +50,7 @@
 #include "webui.h"
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
+#include "ds_handoff.h"
 #include "bridge_probe.h"
 #include "game_hooks.h"
 
@@ -175,6 +176,7 @@ static uint64_t parse_hex_str(const char *s) {
 }
 
 static void parse_klog_line(const char *line) {
+    ds_handoff_klog_line(line);
     if (!strstr(line, "DEVICE_ADDED"))        return;
     if (!strstr(line, "subType:22"))          return;
     if (!strstr(line, "capabilityBattery:0")) return;
@@ -185,6 +187,7 @@ static void parse_klog_line(const char *line) {
     uint64_t id = parse_hex_str(p);
     if (!id) return;
     gp_log("klog: VDA device 0x%llx\n", (unsigned long long)id);
+    ds_handoff_note_virtual(id);
     klog_enqueue(id);
 }
 
@@ -441,7 +444,9 @@ static int32_t create_vda_for_slot(int slot) {
     uint64_t dev_id = klog_dequeue_ms(10000);
     if (dev_id) {
         handle = (int32_t)(dev_id & 0xffffffffu);
+        pthread_mutex_lock(&g_shellui_lock);
         int br = shellui_pad_force_bind(dev_id, g_inject_uid);
+        pthread_mutex_unlock(&g_shellui_lock);
         gp_log("slot[%d] force_bind(0x%llx, 0x%08x) ret=%d\n",
                slot, (unsigned long long)dev_id, (uint32_t)g_inject_uid, br);
     } else if (handle >= 0) {
@@ -461,6 +466,15 @@ static int32_t create_vda_for_slot(int slot) {
     else
         gp_log("slot[%d] ERROR: no VDA handle\n", slot);
     return handle;
+}
+
+/* Steam Controller actually being used (not just awake): a button, or a
+ * stick/trigger well past rest. Wakes the DualSense hand-off. */
+static int sc2_pad_in_use(const ScePadData *p) {
+    if (p->buttons) return 1;
+    int v[4] = { p->leftStick.x, p->leftStick.y, p->rightStick.x, p->rightStick.y };
+    for (int i = 0; i < 4; i++) if (v[i] < 128 - 40 || v[i] > 128 + 40) return 1;
+    return p->analogButtons.l2 > 40 || p->analogButtons.r2 > 40;
 }
 
 /* ── Lazy virtual pad for the Steam Controller (2026) ───────────────────
@@ -609,6 +623,7 @@ static void *usb_hid_thread(void *arg) {
         memset(&uninit,0,sizeof(uninit)); ioctl(fd,USB_FS_UNINIT,&uninit);
         if (active < 0) { gp_log("slot[%d] SC2 puck removed\n",slot); close(fd); goto exit_slot; }
         sc2_vda_attach(slot);
+        ds_handoff_sc2_session(1);
 
         /* Re-init with the single active endpoint at index 0 for the main loop */
         memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
@@ -823,10 +838,13 @@ main_loop: ;
              * lizard-mode reports leave `pad` zeroed, which reads as a stick
              * pushed fully up-left. On disconnect nothing is fed and the
              * bridge is disabled (conn = 0), so native input resumes. */
+            if (!was && sc2_link) ds_handoff_sc2_session(1);       /* woke up */
+            if (injected && sc2_link && sc2_pad_in_use(&pad)) ds_handoff_sc2_used();
             if (injected) game_hooks_feed(&pad, sc2_link);
             else if (!sc2_link) game_hooks_feed(NULL, 0);
             sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
             if (was && !sc2_link) {
+                ds_handoff_sc2_session(0);
                 inject_pad(slot, &pad);                     /* release everything first */
                 sc2_vda_detach(slot, "controller asleep / out of range");
                 notify("Puckbridge: Steam Controller disconnected");
@@ -865,7 +883,7 @@ main_loop: ;
 
 reinit:
     if (usb_ready_notified) { notify("Puckbridge: slot[%d] controller disconnected", slot); usb_ready_notified=0; }
-    if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) { sc2_haptic_available = 0; sc2_menu_open = 0; }
+    if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) { sc2_haptic_available = 0; sc2_menu_open = 0; ds_handoff_sc2_session(0); }
     memset(&stop,0,sizeof(stop)); stop.ep_index=0; ioctl(fd,USB_FS_STOP,&stop);
     if (out_opened) {
         memset(&fs_close,0,sizeof(fs_close)); fs_close.ep_index=1; ioctl(fd,USB_FS_CLOSE,&fs_close);
@@ -1109,6 +1127,7 @@ int main(void) {
     sc2_select_start();
     bridge_probe_start(g_inject_uid);
     game_hooks_start();
+    ds_handoff_start();
     webui_start();
     notify("Puckbridge: remap portal on port %d", WEBUI_PORT);
 
