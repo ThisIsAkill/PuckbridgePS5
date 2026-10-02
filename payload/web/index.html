@@ -84,6 +84,8 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .ctl.sel .s{stroke:var(--text);stroke-width:3}
 .ctl.reserved{cursor:help}
 .row.reserved{cursor:default}
+.row.reserved .chips{min-width:0;flex:1 1 auto}
+.row.reserved .tag{white-space:normal;text-align:right;border-radius:10px}
 .art{fill:#b9c3da;pointer-events:none}
 .artline{fill:none;stroke:#b9c3da;stroke-width:3;pointer-events:none}
 .ctl.ov .s{fill:transparent;stroke:transparent;stroke-width:3}
@@ -182,7 +184,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
 [hidden]{display:none!important}
 
 @media (max-width:900px){
-  .grid{grid-template-columns:1fr}
+  .grid{grid-template-columns:minmax(0,1fr)}
   .pad{position:static}
   .brand small{display:none}
 }
@@ -231,6 +233,9 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
     <div class="toolbar">
       <select id="prof" aria-label="Profile to edit"></select>
       <select id="mode" aria-label="Which profile is used"></select>
+      <button id="exp" class="ghost" title="Download this profile as a file">Export</button>
+      <button id="imp" class="ghost" title="Load a profile file into this profile">Import</button>
+      <input type="file" id="impFile" accept=".ini,.txt,text/plain" hidden>
       <button id="del" class="ghost danger">Delete profile</button>
     </div>
     <div class="grid">
@@ -562,6 +567,27 @@ $("#prof").onchange=e=>load(e.target.value);
 $("#mode").onchange=async e=>{await api("/api/override?id="+encodeURIComponent(e.target.value),{method:"POST"});toast(e.target.value?"Locked to "+pname(e.target.value):"Switching automatically per game")};
 $("#save").onclick=async()=>{try{await api("/api/profile?id="+encodeURIComponent(editing),{method:"POST",body:fmt(cur)});saved=fmt(cur);dirty();await refreshList();toast("Saved")}catch(e){toast("Couldn't save: "+e.message)}};
 $("#revert").onclick=()=>{cur=parse(saved);render()};
+/* ── export / import ── */
+$("#exp").onclick=()=>{
+  const name=(cur.name||editing).replace(/[^\w .()-]+/g,"_").trim()||"profile";
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([fmt(cur)],{type:"text/plain"}));
+  a.download=`Puckbridge - ${name}.ini`;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast(isDirty()?"Exported, including unsaved changes":"Exported");
+};
+$("#imp").onclick=()=>{$("#impFile").value="";$("#impFile").click()};
+$("#impFile").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(f.size>32768){toast("That file is too big to be a profile");return}
+  const p=parse(await f.text());
+  if(!BITS.some(k=>k in p)){toast("That doesn't look like a Puckbridge profile");return}
+  if(!confirm(`Replace the settings of "${pname(editing)}" with ${f.name}? You can still review them before saving.`))return;
+  /* activators the file doesn't set are cleared, everything else it leaves out keeps its value */
+  const next={...cur};
+  Object.keys(next).forEach(k=>{if(k.includes(".")&&!(k in p))next[k]=/\.(turbo|toggle)$/.test(k)?"0":"NONE"});
+  Object.assign(next,p);next.name=cur.name;
+  cur=next;render();dirty();toast("Imported. Check it, then Save");
+};
 $("#del").onclick=async()=>{if(editing==="default"||!confirm(`Delete "${pname(editing)}"?`))return;await api("/api/delete?id="+encodeURIComponent(editing),{method:"POST"});await refreshList();await load("default",true);toast("Deleted")};
 window.addEventListener("beforeunload",e=>{if(isDirty()){e.preventDefault();e.returnValue=""}});
 

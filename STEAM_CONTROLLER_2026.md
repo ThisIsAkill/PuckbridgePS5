@@ -16,6 +16,8 @@ Plug the **Puck** (28de:1304) into a PS5 USB port. A USB-C cable (28de:1302) als
 - *Use* menu: leave on automatic, or lock one profile for everything.
 
 Changes apply the moment you save.
+
+**Export / Import** (next to the profile menu on the Remap tab): *Export* downloads the profile you're editing as a `.ini` file, including unsaved changes, so you can back it up or share it. *Import* loads such a file into the profile you're editing: its bindings and settings replace the current ones (the profile keeps its name), activators the file doesn't set are cleared, and nothing is saved until you press *Save*.
 Profiles are stored as plain text in `/data/ghostpad/profiles/<TITLE_ID>.ini`, so you can back them up over FTP.
 
 ## Bindings (Steam Input-style)
