@@ -48,6 +48,7 @@ typedef struct {
     uint8_t  gyro_sens_x, gyro_sens_y;   /* 1-100: full stick at 2000/n °/s */
     uint8_t  gyro_invert_x, gyro_invert_y;
     uint8_t  gyro_adz;              /* anti-deadzone, % of stick travel, 0-40 */
+    uint8_t  gyro_steady;           /* fine-aim filter, tenths of °/s, 0-30 (0 = raw) */
 } sc2_profile_t;
 
 extern const char *const sc2_in_keys[SC2_IN_COUNT];

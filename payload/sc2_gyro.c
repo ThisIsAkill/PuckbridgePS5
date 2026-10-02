@@ -52,9 +52,10 @@ void ghostpad_status_log(const char *fmt, ...);
 #define CAL_FIRST_MAX_DPS 8.0f                    /* first offset: larger is real turning */
 #define CAL_STEP_MAX_DPS  2.0f                    /* later: drift only creeps */
 
-#define TIGHTEN_DPS       1.5f     /* below this, motion is scaled down (hand tremor) */
-#define SMOOTH_LO_DPS     2.0f     /* below this, fully smoothed */
-#define SMOOTH_HI_DPS     6.0f     /* above this, raw */
+/* Fine-aim filter, set per profile ("steadiness", T °/s; 0 = raw): rates
+ * below T are tightened towards zero (hand tremor), and rates below 3T are
+ * blended with a short average. The firmware already sends calibrated,
+ * low-noise data, so the default is light. */
 #define SMOOTH_N          4
 
 volatile int sc2_gyro_moving = 0;
@@ -171,14 +172,17 @@ void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
     float mx = 0, my = 0;
     for (int i = 0; i < SMOOTH_N; i++) { mx += g_hist[i][0]; my += g_hist[i][1]; }
     mx /= SMOOTH_N; my /= SMOOTH_N;
-    float mag = sqrtf(vx * vx + vy * vy);
-    float k = (mag - SMOOTH_LO_DPS) / (SMOOTH_HI_DPS - SMOOTH_LO_DPS);
-    k = k < 0 ? 0 : k > 1 ? 1 : k;
-    vx = mx + (vx - mx) * k; vy = my + (vy - my) * k;
+    const float T = P->gyro_steady / 10.0f;
+    if (T > 0) {
+        float mag = sqrtf(vx * vx + vy * vy);
+        float k = (mag - T) / (2.0f * T);              /* 0 at T, 1 at 3T */
+        k = k < 0 ? 0 : k > 1 ? 1 : k;
+        vx = mx + (vx - mx) * k; vy = my + (vy - my) * k;
 
-    /* tightening: shrink tiny rates (tremor, leftover drift) towards zero */
-    mag = sqrtf(vx * vx + vy * vy);
-    if (mag < TIGHTEN_DPS) { float t = mag / TIGHTEN_DPS; vx *= t; vy *= t; }
+        /* tightening: shrink tiny rates (tremor) towards zero */
+        mag = sqrtf(vx * vx + vy * vy);
+        if (mag < T) { float t = mag / T; vx *= t; vy *= t; }
+    }
 
     /* rate → stick: sensitivity S puts full stick at 2000/S °/s */
     float fx = vx * P->gyro_sens_x / 2000.0f, fy = vy * P->gyro_sens_y / 2000.0f;
