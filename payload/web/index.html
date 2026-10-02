@@ -79,6 +79,8 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .ctl.sel .s{stroke:var(--text);stroke-width:3}
 .ctl.reserved{cursor:help}
 .row.reserved{cursor:default}
+.row.reserved .chips{min-width:0;flex:1 1 auto}
+.row.reserved .tag{white-space:normal;text-align:right;border-radius:10px}
 .art{fill:#b9c3da;pointer-events:none}
 .artline{fill:none;stroke:#b9c3da;stroke-width:3;pointer-events:none}
 .ctl.ov .s{fill:transparent;stroke:transparent;stroke-width:3}
@@ -177,7 +179,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
 [hidden]{display:none!important}
 
 @media (max-width:900px){
-  .grid{grid-template-columns:1fr}
+  .grid{grid-template-columns:minmax(0,1fr)}
   .pad{position:static}
   .brand small{display:none}
 }
