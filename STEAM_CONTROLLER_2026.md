@@ -66,6 +66,9 @@ Game vibration, and input that doesn't need a virtual controller, both depend on
 ## Notifications
 When a game starts you'll see which profile attached, or that it's using Default.
 
+## Battery
+The portal's header shows the Steam Controller's battery level (with ⚡ while charging), as soon as the controller first reports it. A PS5 notification warns once when it drops to 15% and again at 5%; charging re-arms the warnings.
+
 ## Vibration
 **In games (experimental):** set in *Settings & help → In games*. About 10 seconds after a game starts, Puckbridge redirects the game's own `libScePad` imports to small stubs, using PoorDS4's method:
 - **Input:** `scePadReadState`/`scePadRead` (and Ext) call Sony's original, then merge in the Steam Controller: buttons combined, and a stick or trigger taken from whichever controller is moving it. Both controllers drive the same player. In a hooked game the virtual controller is removed. It comes back on the home screen and in games that can't be hooked. The Steam button can't open the PS menu while in a hooked game.

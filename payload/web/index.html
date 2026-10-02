@@ -38,6 +38,11 @@ header{position:sticky;top:0;z-index:4;background:rgba(15,20,32,.82);backdrop-fi
 .head{display:flex;align-items:center;gap:16px;height:60px}
 .brand{font-weight:700;font-size:1.18rem;letter-spacing:-.01em;margin-right:auto;white-space:nowrap;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .brand small{color:var(--muted);font-weight:400;margin-left:8px}
+.batt{display:inline-flex;align-items:center;gap:4px;padding-left:8px;border-left:1px solid var(--line);font-variant-numeric:tabular-nums}
+.batt.low{color:var(--bad,#e5484d)}
+.batt i{display:inline-block;width:18px;height:9px;border:1.5px solid currentColor;border-radius:2px;position:relative}
+.batt i::after{content:"";position:absolute;right:-4px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0}
+.batt i b{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--muted);white-space:nowrap}
 .dot{width:9px;height:9px;border-radius:50%;background:#5a6378;flex:none}
 .dot.paused{background:#f5c26b}
@@ -207,7 +212,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       <button role="tab" aria-selected="false" data-tab="games">Games</button>
       <button role="tab" aria-selected="false" data-tab="help"><span class="long">Settings &amp; help</span><span class="short">Settings</span></button>
     </nav>
-    <span class="pill"><span class="dot" id="dot"></span><span id="conn">Connecting…</span></span>
+    <span class="pill"><span class="dot" id="dot"></span><span id="conn">Connecting…</span><span id="batt" class="batt" hidden></span></span>
   </div>
 </header>
 
@@ -613,6 +618,7 @@ async function poll(){
     $("#dot").classList.toggle("on",!!status.connected&&!status.paused);
     $("#dot").classList.toggle("paused",!!status.paused);
     $("#conn").textContent=status.paused?"Paused · hold … 5 s to resume":status.connected?"Controller connected":"Controller not connected";
+    paintBattery();
     $("#pauseBtn").textContent=status.paused?"Resume now":"Pause now";$("#pauseBtn").className=status.paused?"primary":"";
     renderNow();paintLive(status.inputs>>>0);paintHap();paintGyro();
     if($("#mode").value!==(status.override||""))$("#mode").value=status.override||"";
@@ -621,6 +627,15 @@ async function poll(){
 }
 
 $("#pauseBtn").onclick=async()=>{try{await api("/api/pause?on="+(status.paused?0:1),{method:"POST"});toast(status.paused?"Resumed":"Paused")}catch(e){toast(e.message)}};
+
+/* ── battery ── */
+function paintBattery(){
+  const el=$("#batt"),lvl=status.battery;
+  if(!status.connected||lvl==null||lvl<0){el.hidden=true;return}
+  el.hidden=false;el.classList.toggle("low",lvl<=15&&!status.charging);
+  el.innerHTML=`<i><b style="width:${Math.max(1,Math.round(lvl*14/100))}px"></b></i>${lvl}%${status.charging===1?" ⚡":""}`;
+  el.title=status.charging===1?"Charging":status.charging===2?"Charged":"Steam Controller battery";
+}
 
 /* ── gyro live readout ── */
 function paintGyro(){

@@ -138,6 +138,9 @@ static void handle(int fd) {
         snprintf(num, sizeof(num), ",\"inputs\":%u,\"connected\":%d,\"menu\":%d,\"haptics\":%d,\"paused\":%d",
                  (unsigned)sc2_live_inputs, sc2_live_connected, sc2_menu_open, sc2_haptic_available, sc2_paused);
         sb_put(&sb, num);
+        snprintf(num, sizeof(num), ",\"battery\":%d,\"charging\":%d",
+                 sc2_battery_level, sc2_battery_state == SC2_BATT_CHARGING ? 1 : sc2_battery_state == SC2_BATT_FULL ? 2 : 0);
+        sb_put(&sb, num);
         snprintf(num, sizeof(num), ",\"hap\":{\"q\":%u,\"sent\":%u,\"fail\":%u,\"err\":%d,\"via\":%d,\"out\":%d}",
                  sc2_hap_queued, sc2_hap_sent, sc2_hap_failed, sc2_hap_last_err, sc2_hap_last_via, sc2_hap_out_ep);
         sb_put(&sb, num);
