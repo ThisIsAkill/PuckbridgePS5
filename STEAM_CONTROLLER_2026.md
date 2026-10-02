@@ -42,6 +42,11 @@ The card's live readout shows whether the gyro is running and aiming, and which 
 
 Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro.
 
+## Flick stick
+Set *Right stick → Flick stick* in the *Flick stick* card on the Remap tab (per profile). The right stick then points where you want to face: push it to the edge and you turn that way (right = 90° right, down = turn around), and rotate it around the edge to keep turning. Let go and it stops. Up/down aim is left to the gyro, so pair it with gyro aiming.
+
+The PS5 game only understands stick input, so a flick is sent as full left/right stick for exactly as long as the turn needs. For that, Puckbridge needs the game's turn speed at full stick: set *Game's turn speed* so that a flick to the right turns exactly 90°. A flick takes a moment (a 180° turn at 360 °/s takes half a second), and games that speed up the camera the longer you hold the stick turn too far; turn off camera acceleration in the game if it has the option.
+
 ## Pause and resume
 Hold **…** (Quick access) for 5 seconds, anywhere: in a game, on the home screen, or in a menu. Puckbridge pauses: the Steam Controller's virtual controller is removed and nothing it does reaches the PS5, and in hooked games the DualSense gets its haptics, speaker and input back exactly as if the Steam Controller were off. A long buzz confirms it. Hold **…** for 5 seconds again to resume (short buzz). The portal's header shows *Paused*, and *Settings & help → Pause Puckbridge* has a button that does the same.
 

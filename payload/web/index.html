@@ -270,6 +270,11 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       <label class="opt"><span>Invert gyro left/right</span><input type="checkbox" data-k="GYRO_INVERT_X"></label>
       <label class="opt"><span>Invert gyro up/down</span><input type="checkbox" data-k="GYRO_INVERT_Y"></label>
     </div>
+    <div class="card opts gyro flick">
+      <div class="opt ghead"><span><b>Flick stick</b><br><small>Point the right stick where you want to face: pushing it to the edge turns you that way, and rotating it around the edge keeps turning. Up and down are left to the gyro, so pair it with gyro aiming.</small></span></div>
+      <div class="opt"><span>Right stick</span><div class="seg" data-g="RSTICK"></div></div>
+      <label class="opt"><span>Game's turn speed <b data-gv="FLICK_SPEED"></b><br><small style="color:var(--muted)">How fast the game turns at full stick. Flick right: if you turn less than 90°, lower it; if more, raise it</small></span><input type="range" min="90" max="1440" step="10" data-gr="FLICK_SPEED"></label>
+    </div>
   </section>
 
   <!-- GAMES -->
@@ -380,7 +385,8 @@ const DEFAULTS={A:"CROSS",B:"CIRCLE",X:"SQUARE",Y:"TRIANGLE",LB:"L1",RB:"R1",LT:
 const RESERVED="QAM", RESERVED_TXT="Reserved: hold 5 s to pause or resume Puckbridge";
 const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
 const GAXES=[["YAW","Turning"],["ROLL","Tilting"]];
-const GDEF={GYRO:"OFF",GYRO_AXIS:"YAW",GYRO_SENS_X:20,GYRO_SENS_Y:16,GYRO_ANTI_DEADZONE:10,GYRO_STEADINESS:5,GYRO_CURVE:10};
+const RSTICKS=[["NORMAL","Normal"],["FLICK","Flick stick"]];
+const GDEF={RSTICK:"NORMAL",FLICK_SPEED:360,GYRO:"OFF",GYRO_AXIS:"YAW",GYRO_SENS_X:20,GYRO_SENS_Y:16,GYRO_ANTI_DEADZONE:10,GYRO_STEADINESS:5,GYRO_CURVE:10};
 
 /* controller diagram: [key, shape, label] — shape: c(cx,cy,r) or r(x,y,w,h,rx) */
 /* controller diagram — positions match the traced drawing (746×541).
@@ -466,12 +472,17 @@ function renderGyro(){
   const show=(k,v)=>{const b=$(`b[data-gv=${k}]`);
     if(k==="GYRO_STEADINESS"){b.textContent=+v?(v/10).toFixed(1)+" °/s":"Off";return}
     if(k==="GYRO_CURVE"){b.textContent=+v>10?"×"+(v/10).toFixed(1):"Linear";return}
+    if(k==="FLICK_SPEED"){b.textContent=v+" °/s";return}
     b.textContent=k==="GYRO_ANTI_DEADZONE"?v+"%":v;
     if(k!=="GYRO_ANTI_DEADZONE")b.title=`Full stick at ${Math.round(2000/v)}°/s`};
   $$("input[data-gr]").forEach(r=>{const k=r.dataset.gr;r.value=cur[k]||GDEF[k];show(k,r.value);
     r.oninput=()=>{cur[k]=r.value;show(k,r.value);dirty()}});
+  const rs=$(".seg[data-g=RSTICK]");rs.innerHTML="";
+  RSTICKS.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",(cur.RSTICK||GDEF.RSTICK)===v);
+    b.onclick=()=>{cur.RSTICK=v;renderGyro();dirty()};rs.appendChild(b)});
+  $("input[data-gr=FLICK_SPEED]").closest(".opt").style.opacity=(cur.RSTICK||"NORMAL")==="FLICK"?1:.5;
   const off=(cur.GYRO||"OFF")==="OFF";
-  $$(".gyro .opt:not(.ghead)").forEach(o=>{if(!o.querySelector("select[data-g=GYRO]"))o.style.opacity=off?.5:1});
+  $$(".gyro:not(.flick) .opt:not(.ghead)").forEach(o=>{if(!o.querySelector("select[data-g=GYRO]"))o.style.opacity=off?.5:1});
 }
 function render(){renderList();renderOpts();paintPad();dirty()}
 
