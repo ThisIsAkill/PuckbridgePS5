@@ -11,7 +11,7 @@ include $(PS5_PAYLOAD_SDK)/toolchain/prospero.mk
 CFLAGS  += -D__PROSPERO__ -Wall -Wextra -g -O2 -fPIC -fno-stack-protector
 LDFLAGS += -lScePad -lSceUserService -lSceSystemService -lpthread -ldl
 
-SRC := gc_main.c shellui_pad.c usb_helpers.c controller_nintendo.c controller_xbox.c controller_steam.c controller_sc2.c sc2_profile.c game_list.c webui.c sc2_haptics.c sc2_menu.c sc2_binding.c bridge_probe.c bridge/wireless_ds4.c game_hooks.c
+SRC := gc_main.c shellui_pad.c usb_helpers.c controller_nintendo.c controller_xbox.c controller_steam.c controller_sc2.c sc2_profile.c game_list.c webui.c sc2_haptics.c sc2_menu.c sc2_binding.c sc2_gyro.c ds_handoff.c bridge_probe.c bridge/wireless_ds4.c game_hooks.c
 
 .PHONY: all clean deploy
 

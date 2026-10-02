@@ -11,6 +11,7 @@ Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-
 - **Steam Controller (2026)** over its wireless **Puck**, or the original Steam Controller (2015) over USB.
 - **Plays real games (PS4 and PS5).** The controller appears to the PS5 as a normal controller, so every game accepts it with no per-game setup.
 - **Rumble in games**, including PS5 titles like *Returnal* that drive the DualSense through audio rather than the classic vibration call — Puckbridge forwards that to the Steam Controller's grip motors.
+- **Gyro aiming.** Turn and tilt the controller to aim with the right stick, always or only while you're holding the grips. It works in every game, with per-profile sensitivity, axis, invert and anti-deadzone.
 - **Hand-off to the DualSense.** Turn the Steam Controller off (or let it sleep) and your DualSense takes over the game normally. Wake the Steam Controller with its **Steam** button and it takes back over. While the Steam Controller is in control, the DualSense's rumble and speaker are kept quiet; when it hands off, they come straight back.
 - **Pause any time.** Hold the Steam Controller's **…** button (reserved for this) for 5 seconds, in a game or on the home screen, to pause Puckbridge so your DualSense works exactly as normal. Hold it again to resume. The controller buzzes to confirm.
 - **Remap portal** at `http://<PS5_IP>:8090`:
@@ -26,7 +27,7 @@ Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-
 ## What doesn't (and why)
 
 - **Adaptive triggers** — the 2026 Steam Controller has plain mechanical triggers with no resistance motors, so the DualSense's adaptive-trigger effects cannot be reproduced. This is a hardware limit, not a software one.
-- **DualSense turning off by itself** — to switch to the DualSense you turn the Steam Controller off yourself. Powering the DualSense off automatically needs to address it from the payload, which isn't currently possible on this firmware. (Tip: *Settings → System → Power Saving → Set Time Until Controllers Turn Off* auto-sleeps an idle DualSense.)
+- **DualSense turning off by itself** is experimental. *Settings & help → DualSense hand-off* disconnects the DualSense when you start using the Steam Controller, and its PS button brings it back. It hasn't been verified on every firmware yet, so it's off by default. (Tip: *Settings → System → Power Saving → Set Time Until Controllers Turn Off* also auto-sleeps an idle DualSense.)
 - **Haptic texture** — rumble is conveyed as intensity, not the DualSense's full waveform, so effects feel coarser than on a DualSense.
 - **Two controllers controlling one game at once** isn't supported; it's one at a time (see hand-off above).
 

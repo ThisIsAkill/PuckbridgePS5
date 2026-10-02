@@ -920,6 +920,13 @@ static pid_t g_game_bridge_direct_pid = -1;
  * it mid-write would send the write to a garbage physical address. All public
  * entry points take this lock. */
 static pthread_mutex_t g_pb_bridge_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/* The SDK's kernel_copyout/kernel_copyin (and kernel_dynlib_*, built on them)
+ * aim one shared pipe at a kernel address and then read/write through it, so
+ * two threads at once can read or write each other's address. Every kernel
+ * memory user outside the bridge takes this same lock. */
+void pb_kernel_lock(void)   { pthread_mutex_lock(&g_pb_bridge_lock); }
+void pb_kernel_unlock(void) { pthread_mutex_unlock(&g_pb_bridge_lock); }
 static intptr_t g_game_bridge_direct_args = 0;
 static uint32_t g_game_bridge_direct_seq = 0;
 static uint32_t g_game_bridge_direct_packets = 0;

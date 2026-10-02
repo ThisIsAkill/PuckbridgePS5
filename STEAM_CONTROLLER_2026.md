@@ -28,10 +28,22 @@ Every input can have several activators, set in the portal when you tap a contro
 
 Any activator can combine several PS5 buttons. Timings (long press, double press, turbo) are per profile.
 
+## Gyro aiming
+Turn and tilt the controller to aim. The gyro is added to the right stick, so it works in every game with no hooks, and the stick still works on top of it. Set it per profile in the *Gyro aiming* card on the Remap tab:
+- **Gyro aims:** off, always, while holding either grip, while holding both grips, while touching the right trackpad, or while touching the right stick. The grips are capacitive, so "either grip" means gyro is on whenever you're holding the controller and pauses when you let go.
+- **Left/right aim from:** *Turning* (yaw, like a flashlight) or *Tilting* (roll, like a steering wheel).
+- **Sensitivity** (left/right and up/down, 1–100): the stick is fully pushed at 2000 ÷ sensitivity °/s, so 20 = full stick at 100 °/s. Hover the value to see it.
+- **Anti-deadzone:** where the gyro's stick output starts, so slow, small movements get past the game's own stick deadzone. Raise it if fine aiming does nothing; lower it if the camera creeps.
+- **Invert** left/right or up/down.
+
+The card's live readout shows whether the gyro is running, aiming or paused, and which grips you're touching. Its dot should move right when you turn right and up when you tilt up; if it doesn't, use Invert.
+
+Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro.
+
 ## Pause and resume
 Hold **…** (Quick access) for 5 seconds, anywhere: in a game, on the home screen, or in a menu. Puckbridge pauses: the Steam Controller's virtual controller is removed and nothing it does reaches the PS5, and in hooked games the DualSense gets its haptics, speaker and input back exactly as if the Steam Controller were off. A long buzz confirms it. Hold **…** for 5 seconds again to resume (short buzz). The portal's header shows *Paused*, and *Settings & help → Pause Puckbridge* has a button that does the same.
 
-**…** is reserved for this: it never sends anything to the PS5 and can't be remapped (Touchpad is on both trackpad clicks). Bindings saved on it by older versions are dropped. Pausing doesn't survive reloading the payload.
+**…** is reserved for this: it never sends anything to the PS5 and can't be remapped (Touchpad is on both trackpad clicks). Bindings saved on it by older versions are dropped. Pausing doesn't survive reloading the payload. If the DualSense hand-off had turned the DualSense off, press its PS button after pausing; resuming turns it off again the next time you use the Steam Controller.
 
 ## On-console menu
 Bind **Puckbridge menu** to any input or activator (e.g. View → Long press), then press it in-game.
@@ -39,6 +51,12 @@ D-pad up/down chooses, left/right changes profile, A selects, B closes. *Remap a
 
 ## Using it alongside a DualSense
 The Steam Controller only appears to the PS5 while it's switched on. When it sleeps or turns off, its virtual controller is removed. So the PS5 never waits for it (e.g. after rest mode), and a DualSense keeps working next to it.
+
+**DualSense hand-off (experimental, off by default):** turn on *Settings & help → DualSense hand-off* and the DualSense is disconnected from the console the first time you use the Steam Controller after it turns on, so the DualSense can't rumble, light up or play sound. Press the DualSense's PS button to switch back: the DualSense takes over and the Steam Controller steps aside (Puckbridge asks it to power off and stops using it either way) until you press its **Steam** button, which switches the DualSense off again.
+- Puckbridge learns which controller is the DualSense from the system log, either when the DualSense turns on or when a game opens it. If it hasn't seen it yet, it waits: starting a game identifies it, and it's turned off then.
+- Turning the DualSense on while the Steam Controller is in control works like pressing its PS button after a hand-off: the DualSense takes over, so the two are never both on.
+- The DualSense gets a new id every time it connects, so Puckbridge turns off the one that connected last. With two DualSenses on (local co-op), turn the hand-off off.
+- The card on the Settings tab shows what happened last, and the log records each step.
 
 ## Game bridge check (PoorDS4)
 Game vibration, and input that doesn't need a virtual controller, both depend on PoorDS4's method: redirecting the game's own controller calls. About 8 seconds after a game starts, the payload runs PoorDS4's checks in read-only mode, so nothing is written to the game. Results show in *Vibration & help → Game bridge check*, and the full report is saved to `/data/ghostpad/bridge-probe-<TITLE_ID>.txt`.
@@ -56,7 +74,7 @@ If the payload stops, merging switches off by itself within about a second. Turn
 The portal's *Vibration & help* tab tests the controller's haptics, with three send methods. Game rumble isn't passed through yet.
 
 ## Known limits
-- One controller per Puck. No game rumble or gyro yet.
+- One controller per Puck.
 - The portal has no password. Anyone on your home network can open it.
 - If the Puck doesn't enumerate, try the other USB port.
 - If game detection doesn't work on your firmware, lock the profile manually with the *Use* menu.

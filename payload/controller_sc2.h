@@ -60,3 +60,8 @@ int  sc2_handle_packet(const uint8_t *buf, uint32_t len,
  * see it as switched off, so the DualSense is fully back in charge. */
 extern volatile int sc2_paused;
 void sc2_set_paused(int on);
+
+/* Ask the controller to power itself off (ID_TURN_OFF_CONTROLLER, 0x9F "off!",
+ * through feature report 1 on its interface). Returns 0 if the request was
+ * accepted; whether the controller obeys shows up as a wireless disconnect. */
+int  sc2_power_off(int fd, int iface);

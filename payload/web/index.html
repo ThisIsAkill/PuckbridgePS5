@@ -116,6 +116,16 @@ input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:
 input[type=checkbox]:checked{background:linear-gradient(180deg,var(--accent),#5b86f0);border-color:transparent}
 input[type=checkbox]:checked::after{transform:translateX(20px);background:#fff}
 input[type=range]{width:150px;accent-color:var(--accent)}
+.gyro{margin-top:20px}
+.gyro .ghead{grid-column:1/-1;border-top:0}
+.gyro .ghead small{color:var(--muted)}
+.gyro .opt select{min-width:0;max-width:62%;flex:0 1 auto}
+.gmeter{position:relative;width:54px;height:54px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);flex:none}
+.gmeter::before,.gmeter::after{content:"";position:absolute;background:var(--line)}
+.gmeter::before{left:50%;top:6px;bottom:6px;width:1px}.gmeter::after{top:50%;left:6px;right:6px;height:1px}
+.gmeter i{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--muted);z-index:1;transition:transform .1s linear}
+.gmeter.on i{background:var(--accent)}
+.glive{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.9rem;text-align:right}
 
 /* games */
 .games-head{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
@@ -241,6 +251,25 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       <label class="opt"><span>Double press window <b data-v="DOUBLE_MS"></b></span><input type="range" min="100" max="800" step="25" data-r="DOUBLE_MS"></label>
       <label class="opt"><span>Turbo speed <b data-v="TURBO_MS"></b></span><input type="range" min="20" max="300" step="10" data-r="TURBO_MS"></label>
     </div>
+    <div class="card opts gyro">
+      <div class="opt ghead"><span><b>Gyro aiming</b><br><small>Turn and tilt the controller to aim. The gyro moves the right stick, so it works in any game, on top of the stick itself.</small></span>
+        <span class="glive"><span id="gyroLive">…</span><span class="gmeter" id="gyroMeter"><i></i></span></span></div>
+      <label class="opt"><span>Gyro aims</span><select data-g="GYRO">
+        <option value="OFF">Off</option>
+        <option value="GRIP">While holding either grip</option>
+        <option value="GRIPS">While holding both grips</option>
+        <option value="RPAD">While touching the right trackpad</option>
+        <option value="RSTICK">While touching the right stick</option>
+        <option value="ALWAYS">Always</option></select></label>
+      <div class="opt"><span>Left/right aim from</span><div class="seg" data-g="GYRO_AXIS"></div></div>
+      <label class="opt"><span>Left/right sensitivity <b data-gv="GYRO_SENS_X"></b></span><input type="range" min="1" max="100" data-gr="GYRO_SENS_X"></label>
+      <label class="opt"><span>Up/down sensitivity <b data-gv="GYRO_SENS_Y"></b></span><input type="range" min="1" max="100" data-gr="GYRO_SENS_Y"></label>
+      <label class="opt"><span>Anti-deadzone <b data-gv="GYRO_ANTI_DEADZONE"></b><br><small style="color:var(--muted)">Raise it if small movements don't move the camera</small></span><input type="range" min="0" max="40" data-gr="GYRO_ANTI_DEADZONE"></label>
+      <label class="opt"><span>Fine-aim steadiness <b data-gv="GYRO_STEADINESS"></b><br><small style="color:var(--muted)">Filters hand shake from tiny movements. Lower it if aiming feels stiff; raise it if the aim jitters</small></span><input type="range" min="0" max="30" data-gr="GYRO_STEADINESS"></label>
+      <label class="opt"><span>Game stick curve <b data-gv="GYRO_CURVE"></b><br><small style="color:var(--muted)">If the aim doesn't come back to where it started after looking away and back, raise this until it does</small></span><input type="range" min="10" max="30" data-gr="GYRO_CURVE"></label>
+      <label class="opt"><span>Invert gyro left/right</span><input type="checkbox" data-k="GYRO_INVERT_X"></label>
+      <label class="opt"><span>Invert gyro up/down</span><input type="checkbox" data-k="GYRO_INVERT_Y"></label>
+    </div>
   </section>
 
   <!-- GAMES -->
@@ -264,6 +293,11 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <h2>Pause Puckbridge</h2>
         <p>Hold the Steam Controller's <kbd>…</kbd> button for 5 seconds, anywhere (in a game or on the home screen), to pause Puckbridge: the Steam Controller stops sending input and your DualSense works exactly as normal. Hold it for 5 seconds again to resume. The controller gives a long buzz when pausing and a short one when resuming.</p>
         <div class="btns"><button id="pauseBtn">Pause now</button></div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <h2>DualSense hand-off</h2>
+        <label class="opt" style="padding:8px 0;border:0"><span><b>Turn the DualSense off while the Steam Controller is in control</b><br><small style="color:var(--muted)">When you start using the Steam Controller, the DualSense is disconnected, so it can't rumble, light up or play sound. Press its PS button to switch back: the DualSense takes over and the Steam Controller steps aside until you press its Steam button. Experimental.</small></span><input type="checkbox" id="dsOff"></label>
+        <p id="dsStatus" style="min-height:1.4em;margin:4px 0 0">&nbsp;</p>
       </div>
       <div class="card">
         <h2>In games</h2>
@@ -345,6 +379,8 @@ function ic(key,cls){const u=ICON[key];return u?`<img class="${cls||"ic"}" src="
 const DEFAULTS={A:"CROSS",B:"CIRCLE",X:"SQUARE",Y:"TRIANGLE",LB:"L1",RB:"R1",LT:"L2",RT:"R2",L3:"L3",R3:"R3",DUP:"UP",DDOWN:"DOWN",DLEFT:"LEFT",DRIGHT:"RIGHT",VIEW:"CREATE",MENU:"OPTIONS",STEAM:"PS",QAM:"NONE",L4:"L3",L5:"L1+R1",R4:"R3",R5:"L3+R3",LPAD_CLICK:"TOUCHPAD",RPAD_CLICK:"TOUCHPAD"};
 const RESERVED="QAM", RESERVED_TXT="Reserved: hold 5 s to pause or resume Puckbridge";
 const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
+const GAXES=[["YAW","Turning"],["ROLL","Tilting"]];
+const GDEF={GYRO:"OFF",GYRO_AXIS:"YAW",GYRO_SENS_X:20,GYRO_SENS_Y:16,GYRO_ANTI_DEADZONE:10,GYRO_STEADINESS:5,GYRO_CURVE:10};
 
 /* controller diagram: [key, shape, label] — shape: c(cx,cy,r) or r(x,y,w,h,rx) */
 /* controller diagram — positions match the traced drawing (746×541).
@@ -410,7 +446,7 @@ function renderList(){
   $$(".row").forEach(r=>{if(r.dataset.k===RESERVED){r.onmouseenter=()=>showCaption(RESERVED);return}r.onclick=()=>openSheet(r.dataset.k);r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(r.dataset.k)}};r.onmouseenter=()=>showCaption(r.dataset.k)});
 }
 function renderOpts(){
-  $$(".seg").forEach(seg=>{const k=seg.dataset.k;seg.innerHTML="";
+  $$(".seg[data-k]").forEach(seg=>{const k=seg.dataset.k;seg.innerHTML="";
     PADS.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",cur[k]===v);b.onclick=()=>{cur[k]=v;renderOpts();dirty()};seg.appendChild(b)})});
   $$("input[type=checkbox][data-k]").forEach(i=>{i.checked=cur[i.dataset.k]==="1";i.onchange=()=>{cur[i.dataset.k]=i.checked?"1":"0";dirty()}});
   const dz=$("input[data-k=DEADZONE]");dz.value=cur.DEADZONE||9;$("#dzv").textContent=dz.value+"%";
@@ -420,6 +456,22 @@ function renderOpts(){
   $$("input[data-r]").forEach(r=>{const k=r.dataset.r,def={LONG_MS:400,DOUBLE_MS:250,TURBO_MS:60}[k];
     r.value=cur[k]||def;$(`b[data-v=${k}]`).textContent=r.value+" ms";
     r.oninput=()=>{cur[k]=r.value;$(`b[data-v=${k}]`).textContent=r.value+" ms";dirty()}});
+  renderGyro();
+}
+function renderGyro(){
+  const gs=$("select[data-g=GYRO]");gs.value=cur.GYRO||GDEF.GYRO;gs.onchange=()=>{cur.GYRO=gs.value;renderGyro();dirty()};
+  const ax=$(".seg[data-g=GYRO_AXIS]");ax.innerHTML="";
+  GAXES.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",(cur.GYRO_AXIS||GDEF.GYRO_AXIS)===v);
+    b.onclick=()=>{cur.GYRO_AXIS=v;renderGyro();dirty()};ax.appendChild(b)});
+  const show=(k,v)=>{const b=$(`b[data-gv=${k}]`);
+    if(k==="GYRO_STEADINESS"){b.textContent=+v?(v/10).toFixed(1)+" °/s":"Off";return}
+    if(k==="GYRO_CURVE"){b.textContent=+v>10?"×"+(v/10).toFixed(1):"Linear";return}
+    b.textContent=k==="GYRO_ANTI_DEADZONE"?v+"%":v;
+    if(k!=="GYRO_ANTI_DEADZONE")b.title=`Full stick at ${Math.round(2000/v)}°/s`};
+  $$("input[data-gr]").forEach(r=>{const k=r.dataset.gr;r.value=cur[k]||GDEF[k];show(k,r.value);
+    r.oninput=()=>{cur[k]=r.value;show(k,r.value);dirty()}});
+  const off=(cur.GYRO||"OFF")==="OFF";
+  $$(".gyro .opt:not(.ghead)").forEach(o=>{if(!o.querySelector("select[data-g=GYRO]"))o.style.opacity=off?.5:1});
 }
 function render(){renderList();renderOpts();paintPad();dirty()}
 
@@ -562,13 +614,31 @@ async function poll(){
     $("#dot").classList.toggle("paused",!!status.paused);
     $("#conn").textContent=status.paused?"Paused · hold … 5 s to resume":status.connected?"Controller connected":"Controller not connected";
     $("#pauseBtn").textContent=status.paused?"Resume now":"Pause now";$("#pauseBtn").className=status.paused?"primary":"";
-    renderNow();paintLive(status.inputs>>>0);paintHap();
+    renderNow();paintLive(status.inputs>>>0);paintHap();paintGyro();
     if($("#mode").value!==(status.override||""))$("#mode").value=status.override||"";
   }catch(e){$("#dot").classList.remove("on");$("#conn").textContent="PS5 unreachable"}
   setTimeout(poll,150);
 }
 
 $("#pauseBtn").onclick=async()=>{try{await api("/api/pause?on="+(status.paused?0:1),{method:"POST"});toast(status.paused?"Resumed":"Paused")}catch(e){toast(e.message)}};
+
+/* ── gyro live readout ── */
+function paintGyro(){
+  const g=status.gyro,t=$("#gyroLive"),m=$("#gyroMeter");
+  let txt;
+  if(!status.connected||!g)txt="Controller not connected";
+  else if(!g.wanted)txt=status.active===editing?"Off in this profile":`Off in ${status.active_name||"the active profile"}`;
+  else if(!g.imu)txt="Starting gyro…";
+  else{const gr=["no grip","left grip","right grip","both grips"][g.grips&3];
+    txt=(g.active?"Aiming":"Not aiming")+" · "+gr+(g.cal?"":" · put it down for a second to calibrate")}
+  t.textContent=txt;
+  const on=!!(g&&g.imu&&g.active);m.classList.toggle("on",on);
+  const ax=g?((cur.GYRO_AXIS||"YAW")==="ROLL"?-g.roll:-g.yaw)*(cur.GYRO_INVERT_X==="1"?-1:1):0;
+  const ay=g?g.pitch*(cur.GYRO_INVERT_Y==="1"?-1:1):0;
+  const c=v=>Math.max(-20,Math.min(20,v/3));
+  m.querySelector("i").style.transform=g&&g.imu?`translate(${c(ax)}px,${c(-ay)}px)`:"none";
+  m.title="Turn right: the dot should move right. Tilt up: it should move up. If not, use Invert.";
+}
 
 /* ── help ── */
 $$("[data-hap]").forEach(b=>b.onclick=async()=>{try{await api("/api/haptic?kind="+b.dataset.hap+"&via="+$("#hapVia").value,{method:"POST"});toast("Sent to controller")}catch(e){toast(e.message||"Request failed")}});
@@ -599,7 +669,22 @@ $("#ghVib").onchange=e=>setHooks("vibration="+(e.target.checked?1:0));
 $("#ghMode").onchange=e=>setHooks("mode="+e.target.value);
 $("#ghAud").onchange=e=>{setHooks("audio="+(e.target.checked?1:0));toast("Restart the game for this to take effect")};
 $("#ghRec").onclick=()=>{setHooks("input=0&vibration=1&audio=1&mode=2");toast("Recommended settings applied — restart the game")};
-setInterval(()=>{if(!$("#tab-help").hidden)paintHooks()},1000);
+setInterval(()=>{if(!$("#tab-help").hidden){paintHooks();paintDs()}},1000);
+
+/* ── DualSense hand-off ── */
+async function paintDs(){
+  let d;try{d=JSON.parse(await api("/api/dualsense"))}catch(e){return}
+  $("#dsOff").checked=!!d.enabled;
+  const seen=d.pads?"":" The DualSense hasn't been identified yet: start a game, or turn the DualSense off and on once.";
+  $("#dsStatus").textContent=!d.enabled?"Off.":({
+    idle:"Ready. The DualSense turns off the first time you use the Steam Controller after it turns on."+seen,
+    no_id:"Waiting: the DualSense hasn't been identified yet. Starting a game identifies it, and it turns off as soon as it is.",
+    working:"Turning the DualSense off…",
+    off:"DualSense is off. Press its PS button to bring it back.",
+    back:"DualSense in control. Press the Steam Controller's Steam button to switch back.",
+    failed:`Couldn't turn the DualSense off (error ${d.ret}). Please send the log.`}[d.state]||"");
+}
+$("#dsOff").onchange=async e=>{try{await api("/api/dualsense?on="+(e.target.checked?1:0),{method:"POST"});paintDs()}catch(err){toast(err.message)}};
 
 /* ── game bridge check ── */
 async function paintBridge(){
