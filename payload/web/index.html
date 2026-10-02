@@ -604,7 +604,7 @@ function paintGyro(){
   else if(!g.wanted)txt=status.active===editing?"Off in this profile":`Off in ${status.active_name||"the active profile"}`;
   else if(!g.imu)txt="Starting gyro…";
   else{const gr=["no grip","left grip","right grip","both grips"][g.grips&3];
-    txt=(g.active?"Aiming":"Paused")+" · "+gr+(g.cal?"":" · hold still to calibrate")}
+    txt=(g.active?"Aiming":"Paused")+" · "+gr+(g.cal?"":" · put it down for a second to calibrate")}
   t.textContent=txt;
   const on=!!(g&&g.imu&&g.active);m.classList.toggle("on",on);
   const ax=g?((cur.GYRO_AXIS||"YAW")==="ROLL"?-g.roll:-g.yaw)*(cur.GYRO_INVERT_X==="1"?-1:1):0;

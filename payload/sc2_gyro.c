@@ -40,11 +40,17 @@ void ghostpad_status_log(const char *fmt, ...);
 #define IMU_RAW_GYRO      0x10
 
 /* Auto-calibration: the controller has to sit still (gyro and gravity both
- * steady) for a whole window; the window's average is the drift offset. */
+ * steady) for a whole window; the window's average is the drift offset.
+ * Turning left/right rotates around gravity, so the accelerometer can't tell
+ * a slow steady turn from stillness: never calibrate while the gyro is aiming
+ * (except "always" mode, and then only at resting-on-a-table noise levels),
+ * and once calibrated only accept small corrections. */
 #define CAL_WINDOW_MS     800
-#define CAL_GYRO_SPREAD   (2.5f * GYRO_PER_DPS)   /* max-min per axis, counts */
+#define CAL_SPREAD_IDLE   (1.5f * GYRO_PER_DPS)   /* max-min per axis while not aiming */
+#define CAL_SPREAD_AIMING (0.75f * GYRO_PER_DPS)  /* "always" mode: only when set down */
 #define CAL_ACCEL_SPREAD  200                     /* ≈0.7° of tilt */
-#define CAL_MAX_DPS       8.0f                    /* larger offsets are real turning */
+#define CAL_FIRST_MAX_DPS 8.0f                    /* first offset: larger is real turning */
+#define CAL_STEP_MAX_DPS  2.0f                    /* later: drift only creeps */
 
 #define TIGHTEN_DPS       1.5f     /* below this, motion is scaled down (hand tremor) */
 #define SMOOTH_LO_DPS     2.0f     /* below this, fully smoothed */
@@ -77,7 +83,9 @@ static int64_t now_ms(void) {
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-static void calibrate(const int16_t g[3], const int16_t a[3], int64_t now) {
+static void calibrate(const int16_t g[3], const int16_t a[3], int64_t now, int aiming) {
+    static int64_t last_log = 0;
+    const float spread = aiming ? CAL_SPREAD_AIMING : CAL_SPREAD_IDLE;
     if (!g_win_n || now - g_win_start > CAL_WINDOW_MS * 2) {   /* (re)start window */
         g_win_start = now; g_win_n = 0;
         for (int i = 0; i < 3; i++) {
@@ -92,7 +100,7 @@ static void calibrate(const int16_t g[3], const int16_t a[3], int64_t now) {
         if (g[i] > g_win_gmax[i]) g_win_gmax[i] = g[i];
         if (a[i] < g_win_amin[i]) g_win_amin[i] = a[i];
         if (a[i] > g_win_amax[i]) g_win_amax[i] = a[i];
-        if (g_win_gmax[i] - g_win_gmin[i] > CAL_GYRO_SPREAD ||
+        if (g_win_gmax[i] - g_win_gmin[i] > spread ||
             g_win_amax[i] - g_win_amin[i] > CAL_ACCEL_SPREAD) still = 0;
         g_win_sum[i] += g[i];
     }
@@ -103,11 +111,15 @@ static void calibrate(const int16_t g[3], const int16_t a[3], int64_t now) {
     float avg[3];
     for (int i = 0; i < 3; i++) {
         avg[i] = g_win_sum[i] / (float)g_win_n;
-        if (fabsf(avg[i]) > CAL_MAX_DPS * GYRO_PER_DPS) { g_win_n = 0; return; }
+        float off = g_cal ? avg[i] - g_bias[i] : avg[i];
+        if (fabsf(off) > (g_cal ? CAL_STEP_MAX_DPS : CAL_FIRST_MAX_DPS) * GYRO_PER_DPS) { g_win_n = 0; return; }
     }
     for (int i = 0; i < 3; i++) g_bias[i] = g_cal ? g_bias[i] + (avg[i] - g_bias[i]) * 0.5f : avg[i];
-    if (!g_cal) LOG("gyro: calibrated (offset %.2f %.2f %.2f °/s)\n",
-                    g_bias[0] / GYRO_PER_DPS, g_bias[1] / GYRO_PER_DPS, g_bias[2] / GYRO_PER_DPS);
+    if (!g_cal || now - last_log > 30000) {
+        LOG("gyro: %s (offset %.2f %.2f %.2f °/s)\n", g_cal ? "recalibrated" : "calibrated",
+            g_bias[0] / GYRO_PER_DPS, g_bias[1] / GYRO_PER_DPS, g_bias[2] / GYRO_PER_DPS);
+        last_log = now;
+    }
     g_cal = 1;
     g_win_n = 0;
 }
@@ -136,13 +148,14 @@ void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
     if (!a[0] && !a[1] && !a[2]) { g_active = 0; return; }   /* IMU off: gravity never reads 0 */
     g_imu_seen = now;
 
-    calibrate(g, a, now);
+    int on = P->gyro_mode != GYRO_OFF && gyro_engaged(P, b);
+    if (!on || P->gyro_mode == GYRO_ALWAYS) calibrate(g, a, now, on);
+    else g_win_n = 0;                         /* aiming: never learn drift */
     float pitch = (g[0] - g_bias[0]) / GYRO_PER_DPS;
     float roll  = -(g[1] - g_bias[1]) / GYRO_PER_DPS;
     float yaw   = (g[2] - g_bias[2]) / GYRO_PER_DPS;
     g_pitch = pitch; g_yaw = yaw; g_roll = roll;
 
-    int on = P->gyro_mode != GYRO_OFF && gyro_engaged(P, b);
     g_active = on;
     if (!on) { memset(g_hist, 0, sizeof(g_hist)); return; }
 
