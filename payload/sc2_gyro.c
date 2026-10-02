@@ -172,7 +172,7 @@ void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
                     int64_t now, int *dx, int *dy) {
     *dx = *dy = 0;
     int buttons = has_gyro_on_button(P);
-    g_wanted = P->gyro_mode != GYRO_OFF || buttons;
+    g_wanted = P->gyro_mode != GYRO_OFF || buttons || P->motion;
     if (len < IMU_MIN_LEN) { g_active = 0; return; }
     g_grips = ((b[5] & 0x20) ? 1 : 0) | ((b[5] & 0x10) ? 2 : 0);
 
@@ -249,7 +249,60 @@ void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
     *dy = (int)lrintf(-fy * 127.0f);                       /* DualSense: +y = down */
 }
 
+/* ── motion for games ─────────────────────────────────────────────────── */
+
+#define ACCEL_PER_G       16384.0f
+#define DEG2RAD           0.017453292f
+#define TILT_GAIN         0.5f       /* how fast gravity pulls tilt back (1/s) */
+
+static float   g_q[4] = { 1, 0, 0, 0 };   /* w x y z: body → world, identity = held level */
+static int64_t g_motion_ms = 0;
+
+void sc2_gyro_motion(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
+                     int64_t now, ScePadData *o) {
+    if (!P->motion || len < IMU_MIN_LEN) return;
+    int16_t a[3] = { le16(b + 34), le16(b + 36), le16(b + 38) };
+    if (!a[0] && !a[1] && !a[2]) return;                  /* IMU not streaming */
+    int16_t g[3] = { le16(b + 40), le16(b + 42), le16(b + 44) };
+
+    /* DualSense axes, same mapping as Linux hid-steam: x = [34], y = [38], z = -[36] */
+    float ax = a[0] / ACCEL_PER_G, ay = a[2] / ACCEL_PER_G, az = -a[1] / ACCEL_PER_G;
+    float wx = (g[0] - g_bias[0]) / GYRO_PER_DPS * DEG2RAD;
+    float wy = (g[2] - g_bias[2]) / GYRO_PER_DPS * DEG2RAD;
+    float wz = -(g[1] - g_bias[1]) / GYRO_PER_DPS * DEG2RAD;
+
+    float dt = g_motion_ms ? (float)(now - g_motion_ms) / 1000.0f : 0.0f;
+    g_motion_ms = now;
+    if (dt < 0.0f) dt = 0.0f;
+    if (dt > 0.05f) dt = 0.05f;
+
+    /* orientation: integrate the gyro, and let gravity slowly correct tilt
+     * (only while the accelerometer reads about 1 g, i.e. not shaking) */
+    float w = g_q[0], x = g_q[1], y = g_q[2], z = g_q[3];
+    float an = sqrtf(ax * ax + ay * ay + az * az);
+    float cx = wx, cy = wy, cz = wz;
+    if (an > 0.8f && an < 1.2f) {
+        float vx = 2 * (x * y + w * z), vy = 1 - 2 * (x * x + z * z), vz = 2 * (y * z - w * x);  /* world up, in body axes */
+        float ux = ax / an, uy = ay / an, uz = az / an;
+        cx += TILT_GAIN * (uy * vz - uz * vy);
+        cy += TILT_GAIN * (uz * vx - ux * vz);
+        cz += TILT_GAIN * (ux * vy - uy * vx);
+    }
+    float h = 0.5f * dt;
+    float nw = w + h * (-x * cx - y * cy - z * cz);
+    float nx = x + h * ( w * cx + y * cz - z * cy);
+    float ny = y + h * ( w * cy - x * cz + z * cx);
+    float nz = z + h * ( w * cz + x * cy - y * cx);
+    float qn = sqrtf(nw * nw + nx * nx + ny * ny + nz * nz);
+    if (qn > 0.0f) { g_q[0] = nw / qn; g_q[1] = nx / qn; g_q[2] = ny / qn; g_q[3] = nz / qn; }
+
+    o->accel.x = ax; o->accel.y = ay; o->accel.z = az;
+    o->vel.x = wx;   o->vel.y = wy;   o->vel.z = wz;
+    o->quat.x = g_q[1]; o->quat.y = g_q[2]; o->quat.z = g_q[3]; o->quat.w = g_q[0];
+}
+
 void sc2_gyro_reset(void) {
+    g_q[0] = 1; g_q[1] = g_q[2] = g_q[3] = 0; g_motion_ms = 0;
     g_act = 0; g_toggled_off = 0;
     g_imu_seen = 0; g_active = 0; g_grips = 0; sc2_gyro_moving = 0;
     g_win_n = 0;
@@ -308,7 +361,7 @@ void sc2_gyro_service(int fd, int iface) {
     } else if (g_wanted && alive) {
         if (tries) LOG("gyro: IMU streaming\n");
         tries = 0; next_try = 0;
-    } else if (!g_wanted && sent_on) {             /* no profile uses gyro: save battery */
+    } else if (!g_wanted && sent_on) {             /* gyro and motion both off: save battery */
         int r = send_setting(fd, iface, SETTING_IMU_MODE, 0);
         LOG("gyro: IMU off → %d\n", r);
         sent_on = 0; tries = 0; next_try = 0;

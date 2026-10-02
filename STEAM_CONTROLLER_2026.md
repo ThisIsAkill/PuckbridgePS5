@@ -47,7 +47,12 @@ The card's live readout shows whether the gyro is running and aiming, and which 
 - **Gyro off (hold):** the gyro stops aiming while it's held, so you can re-centre your hands without moving the camera (ratcheting). A back grip works well.
 - **Gyro on/off:** press to turn gyro aiming off, press again to turn it back on. It's back on after the controller reconnects.
 
-Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro.
+Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro aiming, a gyro button or motion controls.
+
+## Motion controls for games
+Games that use the DualSense's own motion sensor (tilting, turning, shaking) get the Steam Controller's instead: acceleration, turn rate and orientation, in the DualSense's axes. It's on by default and works with gyro aiming on or off; turn it off per profile with *Motion controls for games* in the Gyro card. Orientation starts level, and tilt is corrected from gravity whenever the controller isn't being shaken.
+
+Motion goes through the virtual controller, so in a hooked game with *Settings & help → In games → Use the Steam Controller in games* on, motion comes from the DualSense instead.
 
 ## Pause and resume
 Hold **…** (Quick access) for 5 seconds, anywhere: in a game, on the home screen, or in a menu. Puckbridge pauses: the Steam Controller's virtual controller is removed and nothing it does reaches the PS5, and in hooked games the DualSense gets its haptics, speaker and input back exactly as if the Steam Controller were off. A long buzz confirms it. Hold **…** for 5 seconds again to resume (short buzz). The portal's header shows *Paused*, and *Settings & help → Pause Puckbridge* has a button that does the same.

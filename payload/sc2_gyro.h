@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include "sc2_profile.h"
+#include "gc_types.h"
 
 /* Steam Controller (2026) gyro aiming: gyro → right stick.
  *
@@ -14,6 +15,14 @@
  * 0,0 when gyro is off or not activated. */
 void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
                     int64_t now_ms, int *dx, int *dy);
+
+/* Motion for games: fills the pad's acceleration (g), angular velocity
+ * (rad/s) and orientation from the IMU, in the DualSense's axes (x right,
+ * y up out of the face, z towards the player). Call after sc2_gyro_apply on
+ * the same report. Leaves the pad untouched when the profile has motion off
+ * or the IMU isn't streaming. */
+void sc2_gyro_motion(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
+                     int64_t now_ms, ScePadData *o);
 
 /* Gyro buttons (PB_ACT_GYRO_* bits of this report's bound outputs): call
  * before sc2_gyro_apply. "On" aims while held whatever the profile's mode,
