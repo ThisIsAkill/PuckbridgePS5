@@ -52,6 +52,7 @@
 #include "sc2_menu.h"
 #include "bridge_probe.h"
 #include "game_hooks.h"
+#include "bridge/wireless_ds4.h"
 
 /* ── Logging ──────────────────────────────────────────────────────────── */
 #define LOG_DIR  "/data/ghostpad"
@@ -441,7 +442,9 @@ static int32_t create_vda_for_slot(int slot) {
     uint64_t dev_id = klog_dequeue_ms(10000);
     if (dev_id) {
         handle = (int32_t)(dev_id & 0xffffffffu);
+        pb_kernel_lock();                     /* game hooks read kernel memory too */
         int br = shellui_pad_force_bind(dev_id, g_inject_uid);
+        pb_kernel_unlock();
         gp_log("slot[%d] force_bind(0x%llx, 0x%08x) ret=%d\n",
                slot, (unsigned long long)dev_id, (uint32_t)g_inject_uid, br);
     } else if (handle >= 0) {
