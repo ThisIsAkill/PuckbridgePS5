@@ -40,6 +40,7 @@ static const struct { const char *n; uint32_t m; } k_out[] = {
     {"OPTIONS",SCE_PAD_BUTTON_OPTIONS},{"CREATE",SCE_PAD_BUTTON_SHARE},
     {"PS",SCE_PAD_BUTTON_PS},{"TOUCHPAD",SCE_PAD_BUTTON_TOUCH_PAD},
     {"PB_MENU",PB_ACT_MENU},
+    {"PB_GYRO_ON",PB_ACT_GYRO_ON},{"PB_GYRO_OFF",PB_ACT_GYRO_OFF},{"PB_GYRO_TOGGLE",PB_ACT_GYRO_TOGGLE},
 };
 #define N_OUT ((int)(sizeof(k_out)/sizeof(k_out[0])))
 
@@ -77,6 +78,9 @@ void sc2_profile_default(sc2_profile_t *p) {
     p->gyro_adz = 10;
     p->gyro_steady = 5;
     p->gyro_curve = 10;
+    p->rstick = RSTICK_NORMAL;
+    p->flick_speed = 360;
+    p->motion = 1;
 }
 
 static char *trim(char *s) {
@@ -170,6 +174,11 @@ void sc2_profile_parse(const char *text, sc2_profile_t *p) {
         else if (!strcasecmp(k, "GYRO_CURVE")) {
             int d = atoi(v); if (d < 10) d = 10; if (d > 30) d = 30; p->gyro_curve = (uint8_t)d;
         }
+        else if (!strcasecmp(k, "RSTICK")) p->rstick = !strcasecmp(v, "FLICK") ? RSTICK_FLICK : RSTICK_NORMAL;
+        else if (!strcasecmp(k, "FLICK_SPEED")) {
+            int d = atoi(v); if (d < 90) d = 90; if (d > 1440) d = 1440; p->flick_speed = (uint16_t)d;
+        }
+        else if (!strcasecmp(k, "MOTION")) p->motion = (uint8_t)(atoi(v) != 0);
         else if (!strcasecmp(k, "GYRO_STEADINESS")) {
             int d = atoi(v); if (d < 0) d = 0; if (d > 30) d = 30; p->gyro_steady = (uint8_t)d;
         }
@@ -208,6 +217,8 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
     PUT("GYRO=%s\nGYRO_AXIS=%s\nGYRO_SENS_X=%d\nGYRO_SENS_Y=%d\nGYRO_INVERT_X=%d\nGYRO_INVERT_Y=%d\nGYRO_ANTI_DEADZONE=%d\nGYRO_STEADINESS=%d\nGYRO_CURVE=%d\n",
         k_gyro[p->gyro_mode < GYRO_MODES ? p->gyro_mode : 0], k_gyro_axis[p->gyro_axis & 1],
         p->gyro_sens_x, p->gyro_sens_y, p->gyro_invert_x, p->gyro_invert_y, p->gyro_adz, p->gyro_steady, p->gyro_curve);
+    PUT("RSTICK=%s\nFLICK_SPEED=%d\n", p->rstick == RSTICK_FLICK ? "FLICK" : "NORMAL", p->flick_speed);
+    PUT("MOTION=%d\n", p->motion);
 #undef PUT
     if (o >= n) o = n ? n - 1 : 0;
     return (int)o;
@@ -215,7 +226,8 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
 
 void sc2_combo_name(uint32_t mask, char *out, size_t n) {
     static const char *nice[] = { "Cross","Circle","Square","Triangle","L1","R1","L2","R2",
-        "L3","R3","Up","Down","Left","Right","Options","Create","PS","Touchpad","Puckbridge menu" };
+        "L3","R3","Up","Down","Left","Right","Options","Create","PS","Touchpad","Puckbridge menu",
+        "Gyro on (hold)","Gyro off (hold)","Gyro on/off" };
     size_t o = 0; out[0] = 0;
     for (int j = 0; j < N_OUT; j++)
         if (mask & k_out[j].m) {
