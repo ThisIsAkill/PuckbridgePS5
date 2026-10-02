@@ -70,6 +70,8 @@ See [STEAM_CONTROLLER_2026.md](STEAM_CONTROLLER_2026.md) for the full mapping re
 - Ghostcontrol virtual DualSense injection: StonedModder
 - Steam Controller (2026) protocol: Linux `hid-steam` driver (Vicki Pfau et al.) and SDL
 - Game bridge (vendored in `payload/bridge/`): [PoorDS4](https://github.com/ItsBlurf/PoorDS4) by ItsBlurf
+- Steam Controller illustration in the portal: Akhil Moola
+- Button icons: [Xelu's Free Controller Prompts](https://thoseawesomeguys.com/prompts/) by Nicolae Berbece and Paul Paun (CC0, public domain)
 - PS5 payload SDK: ps5-payload-dev
 
 ## License
