@@ -3,73 +3,157 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <title>PuckbridgePS5</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <style>
 
 :root{
-  --bg:#0f1420; --panel:#181f30; --panel2:#212a3f; --panel3:#2a3450; --line:#2f3a54;
-  --text:#eef1f7; --muted:#97a2bb;
+  --bg:#0f1420; --panel:#181f30; --panel2:#212a3f; --panel3:#2a3450; --line:#2f3a54; --line2:#3b4866;
+  --text:#eef1f7; --muted:#97a2bb; --dim:#6d7891;
   --cross:#6f9bff; --circle:#ff7a7a; --square:#f29ad4; --triangle:#5fd3a6;
-  --accent:#6f9bff; --accent2:#8f7aff; --ok:#5fd3a6;
+  --accent:#6f9bff; --accent2:#8f7aff; --ok:#5fd3a6; --warn:#f5c26b; --bad:#e5484d;
   --r:16px; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.22);
+  --hh:60px; --sub:52px;
   font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
 *{box-sizing:border-box}
+html{scroll-behavior:smooth}
 html,body{margin:0;background:var(--bg);color:var(--text)}
 body::before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(1100px 600px at 80% -10%,rgba(111,155,255,.10),transparent 60%),radial-gradient(900px 500px at -10% 10%,rgba(143,122,255,.08),transparent 55%)}
-body{font-size:16px;line-height:1.45;padding:env(safe-area-inset-top) 0 calc(84px + env(safe-area-inset-bottom));overflow-y:scroll}
+body{font-size:16px;line-height:1.45;padding:env(safe-area-inset-top) 0 calc(96px + env(safe-area-inset-bottom));overflow-y:scroll;overflow-x:hidden}
 .wrap{max-width:1240px;margin:0 auto;padding:0 20px}
 button,select,input{font:inherit;color:inherit}
 button{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px 15px;min-height:42px;cursor:pointer;transition:background .12s,border-color .12s,transform .04s}
-button:hover{border-color:#4a5877;background:var(--panel3)}
+button:hover{border-color:var(--line2);background:var(--panel3)}
 button:active{transform:translateY(1px)}
 button.primary{background:linear-gradient(180deg,var(--accent),#5b86f0);border-color:transparent;color:#0b1120;font-weight:700;box-shadow:0 4px 14px rgba(111,155,255,.3)}
 button.primary:hover{background:linear-gradient(180deg,#83abff,var(--accent))}
 button.ghost{background:transparent}
 button.danger{color:var(--circle)}
-button:disabled{opacity:.45;cursor:default}
-select,input[type=search]{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px 12px;min-height:42px}
+button:disabled{opacity:.45;cursor:default;transform:none}
+select,input[type=search],input[type=number]{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:9px 12px;min-height:42px}
+select{appearance:none;-webkit-appearance:none;padding-right:34px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:right 17px top 52%,right 12px top 52%;background-size:5px 5px;background-repeat:no-repeat;max-width:100%}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+small{color:var(--muted)}
+h2,h3{margin:0;line-height:1.25}
+[hidden]{display:none!important}
 
 /* header */
-header{position:sticky;top:0;z-index:4;background:rgba(15,20,32,.82);backdrop-filter:blur(14px) saturate(1.2);border-bottom:1px solid var(--line)}
+header{position:sticky;top:0;z-index:6;background:rgba(15,20,32,.84);backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);border-bottom:1px solid var(--line)}
 .head{display:flex;align-items:center;gap:16px;height:60px}
 .brand{font-weight:700;font-size:1.18rem;letter-spacing:-.01em;margin-right:auto;white-space:nowrap;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.brand small{color:var(--muted);font-weight:400;margin-left:8px}
+.brand small{color:var(--muted);-webkit-text-fill-color:var(--muted);font-weight:400;margin-left:8px;font-size:.9rem}
 .batt{display:inline-flex;align-items:center;gap:4px;padding-left:8px;border-left:1px solid var(--line);font-variant-numeric:tabular-nums}
-.batt.low{color:var(--bad,#e5484d)}
+.batt.low{color:var(--bad)}
 .batt i{display:inline-block;width:18px;height:9px;border:1.5px solid currentColor;border-radius:2px;position:relative}
 .batt i::after{content:"";position:absolute;right:-4px;top:2px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0}
 .batt i b{position:absolute;left:1px;top:1px;bottom:1px;background:currentColor;border-radius:1px}
-.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--muted);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--muted);white-space:nowrap;min-height:34px}
 .dot{width:9px;height:9px;border-radius:50%;background:#5a6378;flex:none}
-.dot.paused{background:#f5c26b}
+.dot.paused{background:var(--warn)}
 .dot.on{background:var(--triangle);box-shadow:0 0 0 4px rgba(95,211,166,.18)}
 nav.tabs{display:flex;gap:4px}
-nav.tabs button{background:transparent;border-color:transparent;color:var(--muted)}
-.short{display:none}
-nav.tabs button{border-radius:11px}
+nav.tabs button{background:transparent;border-color:transparent;color:var(--muted);border-radius:11px}
 nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--line);color:var(--text);font-weight:700;box-shadow:inset 0 0 0 1px rgba(111,155,255,.25)}
+.short{display:none}
 
 /* now playing */
-.now{display:grid;grid-template-columns:72px 1fr auto;gap:16px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:20px 0}
-.art{width:72px;height:72px;border-radius:12px;background:var(--panel2);display:grid;place-items:center;overflow:hidden;font-weight:700;color:var(--muted);font-size:1.2rem}
+.now{display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:18px 0}
+.art{width:64px;height:64px;border-radius:12px;background:var(--panel2);display:grid;place-items:center;overflow:hidden;font-weight:700;color:var(--muted);font-size:1.2rem}
 .art img{width:100%;height:100%;object-fit:cover;display:block}
-.now h1{font-size:1.25rem;margin:0;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.now .sub{color:var(--muted);font-size:.95rem;margin-top:3px;min-height:1.4em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.badge{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;padding:3px 10px;border-radius:999px;border:1px solid currentColor}
-.badge.ok{color:var(--triangle)} .badge.warn{color:#f5c26b} .badge.lock{color:var(--cross)}
+.now h1{font-size:1.15rem;margin:0;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.now .sub{color:var(--muted);font-size:.92rem;margin-top:3px;min-height:1.4em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.now .acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;padding:3px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.badge.ok{color:var(--triangle)} .badge.warn{color:var(--warn)} .badge.lock{color:var(--cross)}
 
-/* remap layout */
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
-.toolbar select{flex:1 1 220px;min-width:0}
-.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px;align-items:start}
+/* cards & sections */
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
-.pad{padding:16px;position:sticky;top:80px}
+.sec{margin:0 0 28px;scroll-margin-top:calc(var(--hh) + var(--sub) + 10px)}
+.sech{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:0 2px}
+.sech h2{font-size:1.15rem}
+.sech small{font-size:.92rem}
+.ch{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px;border-bottom:1px solid var(--line)}
+.ch h3{font-size:1.05rem}
+.ch p{margin:3px 0 0;color:var(--muted);font-size:.92rem}
+.rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:1px;background:var(--line);border-radius:0 0 var(--r) var(--r);overflow:hidden}
+.card>.rows:first-child{border-radius:var(--r)}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:12px 16px;padding:12px 16px;min-height:56px;background:var(--panel);flex-wrap:wrap}
+.opt>.lbl{flex:1 1 170px;min-width:0}
+.opt .lbl small{display:block;font-size:.88rem;line-height:1.35;margin-top:2px}
+.opt>:not(.lbl){margin-left:auto}
+.opt select{flex:0 1 auto;min-width:0;max-width:100%}
+.opt.full,.rows>:last-child:nth-child(odd){grid-column:1/-1}
+.dim .opt:not(.keep){opacity:.5}
+.dim .opt:not(.keep):focus-within{opacity:1}
+details.adv{grid-column:1/-1;background:var(--panel)}
+details.adv>summary{list-style:none;cursor:pointer;padding:12px 16px;color:var(--accent);font-weight:700;display:flex;align-items:center;gap:8px;min-height:48px;user-select:none}
+details.adv>summary::-webkit-details-marker{display:none}
+details.adv>summary::before{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);margin:0 4px 0 2px;transition:transform .15s}
+details.adv[open]>summary::before{transform:rotate(45deg)}
+details.adv>.rows{border-radius:0;border-top:1px solid var(--line)}
+
+/* segmented control & toggles */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;flex:none;background:var(--panel2);max-width:100%}
+.seg button{border:0;border-radius:0;min-height:36px;padding:5px 12px;background:transparent;font-size:.9rem;color:var(--muted);flex:1 1 auto;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button:hover{background:var(--panel3);color:var(--text)}
+.seg button[aria-pressed=true]{background:var(--accent);color:#0f1a33;font-weight:700}
+input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;width:48px;height:28px;border-radius:999px;background:var(--panel3);border:1px solid var(--line);cursor:pointer;flex:none;transition:background .15s;margin:0}
+input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#cdd5e6;transition:transform .15s}
+input[type=checkbox]:checked{background:linear-gradient(180deg,var(--accent),#5b86f0);border-color:transparent}
+input[type=checkbox]:checked::after{transform:translateX(20px);background:#fff}
+input[type=checkbox].box{width:22px;height:22px;border-radius:6px}
+input[type=checkbox].box::after{display:none}
+input[type=checkbox].box:checked{background:var(--accent)}
+input[type=checkbox].box:checked::before{content:"";position:absolute;left:7px;top:3px;width:5px;height:10px;border:solid #0f1a33;border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+
+/* slider component */
+.opt.sl{display:block;padding:12px 16px 10px}
+.slh{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.slh .lbl{flex:1 1 auto;min-width:0}
+.numbox{display:inline-flex;align-items:center;gap:6px;flex:none}
+.num{width:5.2em;padding:6px 8px;min-height:38px;text-align:right;border-radius:9px;font-variant-numeric:tabular-nums;-moz-appearance:textfield;appearance:textfield}
+.num::-webkit-outer-spin-button,.num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.num:focus{border-color:var(--accent)}
+.unit{color:var(--muted);font-size:.9rem;white-space:nowrap}
+.hint{display:block;color:var(--dim);font-size:.85rem;min-height:1.2em;margin-top:-2px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:32px;margin:4px 0 0;background:transparent;cursor:pointer;touch-action:pan-y;--p:0%}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--accent) var(--p),var(--panel3) var(--p))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--panel3)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+input[type=range]:focus-visible{outline:none}
+input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px rgba(111,155,255,.35)}
+input[type=range]:focus-visible::-moz-range-thumb{box-shadow:0 0 0 4px rgba(111,155,255,.35)}
+
+/* sub navigation */
+nav.sub{position:sticky;top:var(--hh);z-index:5;margin:0 -20px 18px;padding:0 20px;background:rgba(15,20,32,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav.sub .subs{display:flex;gap:6px;overflow-x:auto;padding:8px 0;scrollbar-width:none;-ms-overflow-style:none}
+nav.sub .subs::-webkit-scrollbar{display:none}
+nav.sub button{flex:none;min-height:36px;padding:6px 14px;border-radius:999px;background:transparent;border-color:transparent;color:var(--muted);font-size:.92rem}
+nav.sub button:hover{background:var(--panel2);color:var(--text)}
+nav.sub button[aria-current=true]{background:var(--panel2);border-color:var(--line);color:var(--text);font-weight:700}
+
+/* profile bar */
+.pbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px;margin:0 0 14px}
+.field{display:flex;align-items:center;flex:1 1 240px;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.field>span{padding:0 0 0 12px;color:var(--muted);font-size:.9rem;white-space:nowrap}
+.field select{flex:1;min-width:0;border:0;border-radius:0;background-color:transparent;text-overflow:ellipsis}
+.field:focus-within{border-color:var(--accent)}
+.pacts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.pstate{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:.9rem;white-space:nowrap;padding:0 6px}
+.pstate::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.pstate.dirty{color:var(--warn)} .pstate.dirty::before{background:var(--warn)}
+
+/* remap: buttons */
+.grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;align-items:start}
+.pad{padding:16px;position:sticky;top:calc(var(--hh) + var(--sub) + 10px)}
 .pad svg{width:100%;height:auto;display:block}
-.caption{height:28px;margin-top:8px;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.caption{min-height:28px;margin-top:8px;text-align:center;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .caption b{color:var(--text)}
 .ctl{cursor:pointer}
 .ctl .s{fill:var(--panel2);stroke:var(--line);stroke-width:2;transition:fill .08s}
@@ -83,10 +167,7 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .ctl.live .t{fill:#0f1a33}
 .ctl.sel .s{stroke:var(--text);stroke-width:3}
 .ctl.reserved{cursor:help}
-.row.reserved{cursor:default}
-.row.reserved .chips{min-width:0;flex:1 1 auto}
-.row.reserved .tag{white-space:normal;text-align:right;border-radius:10px}
-.art{fill:#b9c3da;pointer-events:none}
+.padart{fill:#b9c3da;pointer-events:none}
 .artline{fill:none;stroke:#b9c3da;stroke-width:3;pointer-events:none}
 .ctl.ov .s{fill:transparent;stroke:transparent;stroke-width:3}
 .ctl.ov .t{fill:var(--muted);font-size:14px}
@@ -98,13 +179,16 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .legend{display:flex;gap:16px;justify-content:center;color:var(--muted);font-size:.85rem;margin-top:6px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .sw{width:14px;height:10px;border-radius:3px;border:2px solid var(--line);display:inline-block}
-
 .list{overflow:hidden}
-.group h3{margin:0;padding:12px 16px 6px;font-size:.9rem;color:var(--muted)}
-.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 16px;cursor:pointer;min-height:46px;border-top:1px solid transparent}
+.group h3{margin:0;padding:14px 16px 6px;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;cursor:pointer;min-height:48px}
 .row:hover{background:var(--panel2)}
+.row:focus-visible{outline-offset:-2px}
 .row.live{background:rgba(122,167,255,.16);box-shadow:inset 3px 0 0 var(--accent)}
-.row .phys{font-weight:700;display:flex;align-items:center}
+.row .phys{font-weight:700;display:flex;align-items:center;min-width:0}
+.row.reserved{cursor:default}
+.row.reserved .chips{min-width:0;flex:1 1 auto}
+.row.reserved .tag{white-space:normal;text-align:right;border-radius:10px}
 .ic{width:28px;height:28px;margin-right:10px;flex:none}
 .ic.sm{width:18px;height:18px;margin:0 5px 0 -2px;vertical-align:-4px}
 .chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
@@ -112,108 +196,120 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .chip.none{color:var(--muted);border-style:dashed}
 .c-CROSS{color:var(--cross);border-color:currentColor}.c-CIRCLE{color:var(--circle);border-color:currentColor}
 .c-SQUARE{color:var(--square);border-color:currentColor}.c-TRIANGLE{color:var(--triangle);border-color:currentColor}
+.tag{font-size:.75rem;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
 
-.opts{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:0}
-.opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--line);min-height:54px}
-.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex:none}
-.seg button{border:0;border-radius:0;min-height:34px;padding:5px 10px;background:transparent;font-size:.88rem}
-.seg button[aria-pressed=true]{background:var(--accent);color:#0f1a33;font-weight:700}
-input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;width:48px;height:28px;border-radius:999px;background:var(--panel3);border:1px solid var(--line);cursor:pointer;flex:none;transition:background .15s}
-input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#cdd5e6;transition:transform .15s}
-input[type=checkbox]:checked{background:linear-gradient(180deg,var(--accent),#5b86f0);border-color:transparent}
-input[type=checkbox]:checked::after{transform:translateX(20px);background:#fff}
-input[type=range]{width:150px;accent-color:var(--accent)}
-.gyro{margin-top:20px}
-.gyro .ghead{grid-column:1/-1;border-top:0}
-.numrow{display:flex;align-items:center;gap:8px;flex:0 1 60%;min-width:0}
-.numrow input[type=range]{flex:1;min-width:0}
-.num{width:4.2em;padding:4px 6px;font:inherit;text-align:right;background:var(--panel);color:inherit;border:1px solid var(--line);border-radius:8px}
-.unit{color:var(--muted);font-size:.9rem}
-.gyro .ghead small{color:var(--muted)}
-.gyro .opt select{min-width:0;max-width:62%;flex:0 1 auto}
+/* gyro meter */
 .gmeter{position:relative;width:54px;height:54px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);flex:none}
 .gmeter::before,.gmeter::after{content:"";position:absolute;background:var(--line)}
 .gmeter::before{left:50%;top:6px;bottom:6px;width:1px}.gmeter::after{top:50%;left:6px;right:6px;height:1px}
 .gmeter i{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--muted);z-index:1;transition:transform .1s linear}
 .gmeter.on i{background:var(--accent)}
-.glive{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.9rem;text-align:right}
+.glive{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.9rem;text-align:right;flex:none;max-width:46%}
 
 /* games */
 .games-head{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
-.games-head input{flex:1 1 260px}
+.games-head input{flex:1 1 260px;min-width:0}
 .games{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:16px}
 .game{padding:10px;display:flex;flex-direction:column;gap:8px}
 .game.playing{border-color:var(--triangle);box-shadow:0 0 0 1px var(--triangle)}
 .game .art{width:100%;height:auto;aspect-ratio:1;font-size:2rem}
 .game .name{font-weight:700;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em}
-.game .meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.85rem;min-height:26px}
+.game .meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.85rem;min-height:26px;gap:6px}
+.game .meta span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .game button{width:100%}
-.empty{color:var(--muted);padding:40px;text-align:center}
+.empty{color:var(--muted);padding:40px 20px;text-align:center;grid-column:1/-1}
+.empty b{display:block;color:var(--text);margin-bottom:4px}
 
-/* help */
-.help{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
-.help .card{padding:18px}
-.help h2{margin:0 0 6px;font-size:1.1rem}
-.help p{color:var(--muted);margin:0 0 12px}
+/* settings & help */
+.help{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:18px;align-items:start}
+.help .sec{margin:0}
+.help .sec.wide{grid-column:1/-1}
+.help .ch{border-bottom:0}
+.help .ch+.rows,.help .ch+.body{border-top:1px solid var(--line)}
+.body{padding:14px 16px 16px}
+.body p{margin:0 0 12px;color:var(--muted)}
+.body p:last-child{margin-bottom:0}
 .btns{display:flex;gap:8px;flex-wrap:wrap}
 kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 7px;font:inherit;font-size:.9em}
 ol{margin:0;padding-left:20px;color:var(--muted)} ol li{margin:4px 0} ol b{color:var(--text)}
 pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:.8rem;max-height:50vh;overflow:auto;margin:12px 0 0}
+.status{color:var(--muted);font-size:.92rem;margin:0;min-height:1.4em}
+.kv .opt{min-height:48px;padding:10px 16px}
 
 /* save bar, sheet, toast */
-.savebar{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(30,38,55,.96);backdrop-filter:blur(8px);border-top:1px solid var(--line);transform:translateY(110%);transition:transform .18s}
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:7;background:rgba(30,38,55,.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid var(--line);transform:translateY(110%);transition:transform .18s;box-shadow:0 -8px 24px rgba(0,0,0,.25)}
 .savebar.show{transform:none}
-.savebar .wrap{display:flex;gap:10px;align-items:center;justify-content:space-between;height:68px;padding-bottom:env(safe-area-inset-bottom)}
+.savebar .wrap{display:flex;gap:10px;align-items:center;justify-content:space-between;min-height:68px;padding-top:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+.savebar .msg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.savebar .msg::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:8px;vertical-align:1px}
 .sheet{position:fixed;inset:0;background:rgba(10,14,24,.6);display:none;align-items:center;justify-content:center;z-index:8;padding:20px}
 .sheet.show{display:flex}
-.sheet .box{background:var(--panel);border:1px solid var(--line);border-radius:18px;width:100%;max-width:520px;padding:20px;max-height:88vh;overflow:auto}
-.sheet h3{margin:0 0 4px;font-size:1.2rem}
+.sheet .box{background:var(--panel);border:1px solid var(--line);border-radius:18px;width:100%;max-width:560px;padding:20px;max-height:88vh;overflow:auto}
+.sheet h3{margin:0 0 4px;font-size:1.2rem;display:flex;align-items:center}
 .sheet p{color:var(--muted);margin:0}
-.pick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.pick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0}
+.pick button{display:flex;align-items:center;justify-content:center;gap:4px;padding:8px 6px;font-size:.9rem;line-height:1.2;min-height:44px}
 .pick button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#0f1a33;font-weight:700}
 .pick .g-CROSS[aria-pressed=false]{color:var(--cross)}.pick .g-CIRCLE[aria-pressed=false]{color:var(--circle)}
 .pick .g-SQUARE[aria-pressed=false]{color:var(--square)}.pick .g-TRIANGLE[aria-pressed=false]{color:var(--triangle)}
-.sheet .foot{display:flex;justify-content:space-between;gap:8px}
+.pick .g-PB_MENU[aria-pressed=false],.pick [class^=g-PB_GYRO][aria-pressed=false]{color:var(--warn)}
+.pick .g-PB_MENU,.pick [class^=g-PB_GYRO]{grid-column:span 2}
+.sheet .foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;position:sticky;bottom:-20px;margin:0 -20px -20px;padding:12px 20px calc(12px + env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
 .acts-tabs{display:flex;gap:4px;margin:14px 0 0;flex-wrap:wrap}
 .acts-tabs button{min-height:36px;padding:6px 12px;font-size:.9rem;background:transparent;color:var(--muted)}
 .acts-tabs button[aria-selected=true]{background:var(--panel2);color:var(--text);font-weight:700;border-color:var(--line)}
 .acts-tabs button .n{display:inline-block;min-width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:6px;vertical-align:middle}
 .acthelp{color:var(--muted);font-size:.9rem;margin:10px 0 0;min-height:2.6em}
 .actopts{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 14px}
-.actopts label{display:inline-flex;gap:8px;align-items:center}
-.pick .g-PB_MENU[aria-pressed=false],.pick [class^=g-PB_GYRO][aria-pressed=false]{color:#f5c26b}
-.tag{font-size:.75rem;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
-.toast{position:fixed;left:50%;top:76px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 16px;z-index:9;opacity:0;pointer-events:none;transition:opacity .15s}
+.actopts label{display:inline-flex;gap:10px;align-items:center;min-height:40px}
+.toast{position:fixed;left:50%;top:calc(var(--hh) + 12px);transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 16px;z-index:9;opacity:0;pointer-events:none;transition:opacity .15s;max-width:calc(100% - 32px);text-align:center}
 .toast.show{opacity:1}
-[hidden]{display:none!important}
 
-@media (max-width:900px){
+@media (max-width:980px){
   .grid{grid-template-columns:minmax(0,1fr)}
   .pad{position:static}
   .brand small{display:none}
 }
 @media (max-width:640px){
-  .wrap{padding:0 14px}
+  :root{--sub:50px}
+  .wrap{padding:0 16px}
+  nav.sub{margin:0 -16px 16px;padding:0 16px}
   .head{height:auto;flex-wrap:wrap;padding-top:10px;padding-bottom:10px;gap:10px}
   nav.tabs{order:3;width:100%}
-  nav.tabs button{flex:1}
+  nav.tabs button{flex:1;min-height:40px;padding:6px 8px}
   .long{display:none} .short{display:inline}
   .ctl .t{font-size:22px} .ctl .t.sm{font-size:16px}
-  .now{grid-template-columns:56px 1fr}
-  .now .art{width:56px;height:56px}
-  .now .acts{grid-column:1/-1}
+  .now{grid-template-columns:52px 1fr;padding:10px 12px}
+  .now .art{width:52px;height:52px}
+  .now .acts{grid-column:1/-1;justify-content:flex-start}
+  .pbar{padding:10px}
+  .field{flex-basis:100%}
+  .pacts{width:100%;margin-left:0}
+  .pacts button{flex:1 1 auto;min-height:40px;padding:8px 10px}
+  .pstate{width:100%;padding:0 2px 2px}
+  .seg button{min-height:40px;padding:6px 11px}
+  .opt{padding:12px 14px}
+  .opt.sl{padding:12px 14px 10px}
+  .num{min-height:40px}
+  .rows{grid-template-columns:minmax(0,1fr)}
+  .glive{max-width:40%;font-size:.85rem}
   .sheet{align-items:flex-end;padding:0}
-  .sheet .box{border-radius:18px 18px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+  .sheet .box{border-radius:18px 18px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom));max-height:92vh}
+  .pick{grid-template-columns:repeat(3,1fr)}
+  .pick .g-PB_MENU,.pick [class^=g-PB_GYRO]{grid-column:span 3}
   .games{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+  .savebar .wrap{flex-wrap:wrap}
+  .savebar .btns{margin-left:auto}
+  .btns button{flex:1 1 auto}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap head">
     <div class="brand">PuckbridgePS5<small>Steam Controller for PS5</small></div>
-    <nav class="tabs" role="tablist">
+    <nav class="tabs" role="tablist" aria-label="Pages">
       <button role="tab" aria-selected="true" data-tab="remap">Remap</button>
       <button role="tab" aria-selected="false" data-tab="games">Games</button>
       <button role="tab" aria-selected="false" data-tab="help"><span class="long">Settings &amp; help</span><span class="short">Settings</span></button>
@@ -234,67 +330,109 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
 
   <!-- REMAP -->
   <section id="tab-remap">
-    <div class="toolbar">
-      <select id="prof" aria-label="Profile to edit"></select>
-      <select id="mode" aria-label="Which profile is used"></select>
-      <button id="exp" class="ghost" title="Download this profile as a file">Export</button>
-      <button id="imp" class="ghost" title="Load a profile file into this profile">Import</button>
-      <input type="file" id="impFile" accept=".ini,.txt,text/plain" hidden>
-      <button id="del" class="ghost danger">Delete profile</button>
-    </div>
-    <div class="grid">
-      <div class="card pad">
-        <svg id="padsvg" viewBox="-6 -58 758 664" role="group" aria-label="Controller layout. Select a control to remap it.">
-          <path class="art" fill-rule="evenodd" d="M99.5 520.6C81.1 517.6 65.0 509.8 52.2 497.6C21.1 468.1 11.9 418.8 22.1 337.0C27.6 293.1 37.1 250.5 57.0 180.5C62.9 159.6 69.5 136.4 71.5 129.0C78.6 103.1 86.3 87.0 98.3 73.2C102.1 68.8 104.1 65.6 104.5 63.0C106.3 52.5 115.4 40.1 126.3 33.2C132.7 29.2 145.9 23.8 152.0 22.6C153.9 22.3 156.6 21.8 158.0 21.5C174.9 18.1 202.1 17.4 211.2 20.3C217.2 22.1 222.4 27.0 223.7 31.9C224.3 34.2 224.4 34.2 232.4 33.6C275.0 30.2 478.7 30.2 521.6 33.6L529.7 34.3L530.4 31.7C530.7 30.2 532.7 27.3 534.8 25.1C539.8 19.8 546.0 18.5 565.5 18.7C599.4 18.9 624.7 27.1 638.8 42.4C643.5 47.5 648.7 57.4 649.6 63.1C650.0 65.6 652.2 69.2 656.6 74.4C668.5 88.7 675.1 102.4 682.1 127.8C684.3 135.9 690.6 158.1 696.1 177.2C720.4 262.2 731.0 314.6 735.0 368.5C741.2 454.1 715.7 506.4 661.5 519.0C644.8 522.9 627.8 522.4 618.3 517.9C615.6 516.6 610.0 512.0 605.5 507.5C598.2 500.2 596.9 498.2 590.2 484.5C574.5 452.5 561.8 439.1 543.3 435.2C540.4 434.5 505.3 433.6 456.9 432.9C391.8 431.9 359.5 431.9 295.5 432.9C248.0 433.6 213.5 434.6 210.5 435.2C202.1 437.0 195.7 440.5 188.6 447.0C180.2 454.9 173.2 465.5 163.8 484.4C154.7 503.0 147.1 511.9 135.7 517.5C129.2 520.7 127.5 521.1 118.0 521.5C111.7 521.8 104.3 521.4 99.5 520.6ZM663.7 512.0C710.4 499.2 733.3 451.8 729.0 376.5C725.9 320.5 716.0 270.3 691.1 183.0C686.2 165.7 679.9 143.4 677.2 133.5C668.0 100.5 662.3 89.3 646.0 73.0C634.2 61.1 629.2 58.0 612.9 52.6C583.3 42.7 549.8 39.8 442.4 37.8C343.7 36.0 225.0 38.6 183.5 43.5C160.2 46.3 138.0 52.2 124.5 59.3C116.1 63.7 102.1 77.5 94.9 88.4C87.8 99.2 82.6 112.1 76.7 134.0C74.2 143.1 68.1 164.9 63.0 182.5C46.3 240.6 36.0 284.8 30.6 321.5C20.4 391.2 22.7 436.6 38.2 467.5C47.7 486.2 58.9 497.9 75.7 506.4C87.4 512.2 95.6 514.1 111.8 514.7L126.0 515.3L132.3 512.2C142.8 507.0 149.4 499.1 158.5 481.0C168.5 460.9 173.6 453.1 182.9 444.0C191.1 435.8 197.4 432.0 206.6 429.4C221.6 425.2 532.4 425.2 547.4 429.4C556.6 432.0 562.8 435.8 571.1 444.0C580.3 453.1 584.7 459.8 595.2 480.5C604.3 498.4 611.3 507.0 620.5 511.8C629.1 516.2 647.9 516.3 663.7 512.0ZM98.4 470.8C99.2 457.2 99.6 451.8 101.6 433.5C102.4 425.8 103.2 417.5 103.5 415.0C104.8 402.0 107.2 381.8 108.0 377.0C108.5 374.0 109.2 369.5 109.5 367.0C109.8 364.5 110.3 361.4 110.5 360.0C110.7 358.6 111.4 354.4 112.0 350.5C116.8 319.3 121.0 297.4 126.4 275.0C129.9 260.3 132.5 252.6 136.2 246.1C148.5 224.4 168.3 214.5 205.2 211.7C215.6 211.0 221.0 210.2 221.0 209.4C221.0 208.8 220.4 206.3 219.7 203.9C217.9 198.0 217.6 185.4 219.0 178.2C223.0 158.3 239.9 140.7 260.0 135.5C277.6 130.9 299.3 136.7 312.1 149.3C327.3 164.2 332.8 184.4 327.5 205.3L326.8 208.0L377.0 208.0L427.2 208.0L426.6 205.8C424.4 197.8 423.9 188.7 425.3 180.6C433.1 135.9 487.1 118.4 519.3 150.2C527.4 158.2 532.8 167.8 534.9 177.8C536.4 185.2 536.3 196.6 534.5 203.3C533.7 206.5 533.0 209.4 533.0 209.8C533.0 210.3 540.3 211.1 549.2 211.8C582.3 214.3 600.3 222.0 614.2 239.7C617.1 243.5 622.8 256.3 624.9 263.9C632.3 290.5 641.9 344.2 647.9 392.5C652.7 431.0 657.1 480.8 655.7 481.7C653.8 482.8 653.2 480.0 652.1 465.0C647.2 400.5 636.3 325.0 624.9 277.0C619.1 252.5 614.1 242.2 603.6 233.1C593.6 224.4 579.6 218.6 564.0 216.4C562.1 216.2 559.1 215.8 557.5 215.5C555.9 215.3 549.3 214.8 542.9 214.4L531.3 213.8L529.0 217.6C522.7 227.9 513.6 236.1 503.2 240.7C497.4 243.3 496.5 243.5 489.5 245.0C483.9 246.2 471.5 245.4 465.0 243.5C451.4 239.4 437.3 228.2 431.5 216.7L428.5 211.0L377.1 211.2L325.7 211.5L321.8 218.0C317.7 224.9 309.4 233.4 302.8 237.6C290.3 245.5 271.5 247.7 256.9 243.1C244.8 239.3 231.1 228.4 225.8 218.3C223.6 214.1 223.4 214.0 218.5 214.0C215.8 214.0 208.4 214.5 202.1 215.0C163.9 218.4 145.3 230.3 134.1 258.3C132.9 261.3 128.4 279.6 125.5 293.0C123.4 302.8 119.4 324.6 116.5 342.1C112.8 363.9 108.3 397.8 106.0 421.5C104.9 432.5 103.8 442.6 103.5 444.0C103.3 445.4 102.8 451.4 102.4 457.5C102.0 463.6 101.6 469.2 101.4 470.0C101.3 470.8 101.1 473.9 101.1 476.8C101.0 480.9 100.7 482.0 99.4 482.0C97.9 482.0 97.8 480.8 98.4 470.8ZM265.5 403.9C255.5 402.0 221.9 396.2 193.5 391.4C175.1 388.3 169.6 386.0 164.2 379.2C157.6 370.8 156.9 364.5 160.5 346.5C161.2 342.6 162.1 337.5 162.5 335.0C162.8 332.5 163.9 326.0 165.0 320.5C166.0 315.0 167.1 309.1 167.3 307.5C170.0 289.0 175.6 260.5 177.2 256.7C179.9 250.5 186.8 244.4 193.3 242.5C199.7 240.6 202.4 240.6 213.0 242.5C217.7 243.4 231.8 245.9 244.5 248.0C288.4 255.5 304.7 258.8 308.7 260.9C314.2 263.7 319.7 270.4 321.5 276.4C323.8 284.0 323.8 283.7 318.5 312.5C316.8 321.7 316.5 323.2 314.4 335.5C313.6 340.4 312.5 347.3 312.0 350.8C311.4 354.2 310.6 358.9 310.1 361.3C309.2 365.2 308.8 367.6 307.4 376.8C307.1 378.8 306.1 383.2 305.2 386.5C302.2 397.6 290.5 406.3 279.1 405.9C277.1 405.8 271.0 404.9 265.5 403.9ZM465.6 404.4C459.2 402.4 451.0 394.3 449.2 388.2C448.5 385.9 444.1 362.0 439.4 335.2C430.3 283.2 430.0 279.8 433.9 272.1C436.5 267.1 442.7 261.7 448.1 259.6C450.5 258.8 462.6 256.2 475.0 254.1C487.4 251.9 507.9 248.3 520.5 246.1C552.0 240.6 553.6 240.4 560.4 242.4C567.5 244.5 574.8 251.3 577.3 258.0C579.0 262.5 596.0 358.3 596.0 363.1C596.0 364.5 595.3 368.0 594.4 370.9C592.5 377.5 585.4 385.0 579.0 387.4C574.1 389.1 477.9 406.0 473.3 405.9C471.8 405.9 468.3 405.2 465.6 404.4ZM285.5 401.9C293.5 399.8 301.1 392.2 302.5 384.8C303.5 380.2 313.0 325.6 313.6 321.5C313.9 319.9 314.5 316.5 315.0 314.0C315.5 311.5 316.9 303.6 318.1 296.3C320.0 284.0 320.1 282.7 318.6 277.8C316.7 271.3 310.9 264.9 304.8 262.6C302.4 261.7 296.4 260.3 291.5 259.4C286.6 258.6 272.1 256.1 259.5 253.9C246.8 251.7 231.3 249.0 225.0 247.9C200.5 243.6 200.2 243.6 194.5 245.4C188.4 247.3 182.5 252.5 179.9 258.4C178.9 260.7 177.0 269.5 175.6 278.0C172.6 295.9 172.3 297.8 171.0 304.5C170.4 307.2 168.9 316.0 167.6 324.0C164.3 343.3 164.1 344.5 162.9 351.5C161.0 361.8 160.9 364.0 162.1 368.2C164.1 375.9 169.8 382.1 177.0 384.6C180.1 385.7 189.8 387.5 213.0 391.5C230.9 394.6 254.0 398.6 264.0 400.5C278.9 403.2 280.3 403.3 285.5 401.9ZM529.2 393.5C581.7 384.4 582.8 384.0 588.0 376.3C594.0 367.1 594.0 367.9 584.5 313.0C579.8 285.8 575.3 261.7 574.5 259.4C571.7 251.9 564.4 246.0 555.9 244.5C551.9 243.8 454.9 260.2 449.2 262.6C441.1 266.0 435.7 272.6 434.5 280.7C433.6 287.2 450.3 382.8 453.5 389.5C457.8 398.3 467.2 403.5 477.0 402.4C479.5 402.1 503.0 398.1 529.2 393.5ZM354.1 335.8C348.3 332.7 345.9 325.2 349.0 319.5C351.7 314.5 354.0 314.0 377.5 314.0C398.2 314.0 399.2 314.1 402.1 316.2C407.9 320.5 407.9 329.3 402.0 334.5C400.0 336.4 398.2 336.5 378.1 336.8C362.2 337.0 355.9 336.7 354.1 335.8ZM400.4 331.5C404.1 328.1 404.2 323.0 400.7 319.2C398.7 317.1 398.2 317.0 377.5 317.0C357.5 317.0 356.1 317.1 353.6 319.1C349.2 322.6 350.2 329.9 355.5 332.9C356.8 333.6 364.6 334.0 377.7 333.9C397.5 333.9 397.9 333.8 400.4 331.5ZM385.4 326.6C384.5 324.2 386.6 322.2 388.2 323.8C389.1 324.8 389.0 325.4 387.7 326.7C386.2 328.2 386.0 328.2 385.4 326.6ZM365.2 325.2C365.4 324.3 366.2 323.5 367.0 323.5C367.8 323.5 368.6 324.3 368.8 325.2C369.0 326.5 368.5 327.0 367.0 327.0C365.5 327.0 365.0 326.5 365.2 325.2ZM375.2 325.2C375.4 324.3 376.2 323.5 377.0 323.5C377.8 323.5 378.6 324.3 378.8 325.2C379.0 326.5 378.5 327.0 377.0 327.0C375.5 327.0 375.0 326.5 375.2 325.2ZM286.5 240.8C304.6 236.7 319.7 221.5 325.0 202.1C327.8 191.7 325.6 174.7 320.2 164.5C316.5 157.7 305.8 147.2 298.4 143.3C268.1 127.2 231.4 143.6 222.5 177.0C217.9 194.3 224.0 215.2 237.3 227.7C251.3 240.8 267.4 245.1 286.5 240.8ZM490.3 241.6C491.5 241.3 493.5 240.9 494.6 240.6C501.5 239.1 510.9 233.4 517.5 226.6C551.6 192.1 525.3 134.2 477.0 137.3C454.4 138.8 435.0 154.7 429.0 176.9C427.4 182.8 427.7 196.4 429.5 203.3C433.1 216.9 442.2 228.7 454.5 235.5C465.7 241.7 478.9 243.9 490.3 241.6ZM263.3 222.2C248.2 216.8 239.7 204.9 239.8 189.2C239.9 168.9 257.5 153.7 278.0 156.1C298.3 158.5 312.2 179.1 306.6 198.5C304.5 205.4 302.9 208.1 297.6 213.8C289.2 222.6 274.5 226.2 263.3 222.2ZM472.0 223.1C458.5 218.6 450.6 210.5 447.4 197.8C441.8 175.9 458.3 155.7 481.6 155.9C495.4 156.0 508.5 165.8 513.0 179.5C515.0 185.5 514.5 195.5 512.0 202.3C509.3 209.4 501.6 217.6 494.5 220.9C489.2 223.4 476.6 224.6 472.0 223.1ZM286.5 217.9C293.7 214.3 297.7 210.3 301.2 203.3C304.0 197.6 304.4 195.6 304.4 189.5C304.2 172.6 292.3 160.0 275.5 159.2C262.2 158.5 250.8 165.3 245.5 177.1C243.1 182.6 242.8 184.1 243.2 191.5C243.7 200.6 246.0 205.8 252.2 211.9C261.1 220.7 275.7 223.3 286.5 217.9ZM493.7 217.6C505.5 211.7 511.5 201.1 510.8 188.0C509.8 171.7 498.8 160.4 482.9 159.2C473.7 158.6 466.3 161.0 459.9 166.8C451.4 174.4 448.0 184.2 450.1 195.4C453.6 215.1 476.1 226.6 493.7 217.6ZM589.7 200.0C585.3 198.7 580.3 194.3 577.3 189.2C572.0 180.3 574.2 168.4 582.6 161.1C587.2 157.0 589.9 156.0 596.4 156.0C606.6 156.0 613.3 159.9 617.4 168.2C626.4 186.2 609.2 205.8 589.7 200.0ZM606.1 195.2C614.9 190.8 618.7 181.6 615.5 172.1C608.7 151.4 577.6 156.8 577.8 178.6C577.8 184.6 579.5 188.3 584.1 192.8C590.0 198.6 597.8 199.4 606.1 195.2ZM149.5 191.6C148.9 191.4 146.6 190.7 144.2 189.9C141.8 189.2 139.5 187.9 138.9 186.9C138.4 185.9 138.0 179.3 138.0 172.3C138.0 163.6 137.6 159.0 136.8 158.2C136.0 157.4 131.3 157.0 122.3 157.0C110.3 157.0 108.9 156.8 107.2 155.0C104.2 151.7 103.0 146.2 103.3 135.5C103.5 127.5 103.9 124.8 105.6 122.0L107.6 118.5L121.5 118.2C129.6 118.1 135.9 117.5 136.7 116.8C137.7 116.0 138.0 112.2 138.0 102.0C138.0 84.2 137.9 84.3 155.2 83.3C164.6 82.7 172.3 84.0 175.2 86.7C176.8 88.1 177.0 90.2 177.0 102.1C177.0 112.0 177.3 116.1 178.2 116.7C178.9 117.1 185.8 117.7 193.5 118.0L207.5 118.5L209.5 122.5C211.1 125.8 211.5 128.5 211.5 137.5C211.5 146.5 211.1 149.2 209.5 152.5L207.5 156.5L194.5 156.7C175.2 157.1 177.0 155.6 177.0 171.4C177.0 178.8 176.7 185.6 176.4 186.5C175.8 188.0 173.2 189.5 169.0 190.8C167.1 191.4 150.8 192.0 149.5 191.6ZM165.0 187.9C168.5 187.4 172.0 186.4 172.7 185.8C173.6 185.1 174.0 181.1 174.0 171.6C174.0 161.8 174.4 157.9 175.4 156.4C176.7 154.7 178.5 154.4 191.2 154.0L205.5 153.5L207.0 150.5C209.0 146.6 209.1 128.9 207.2 124.3L205.8 121.1L191.3 120.8C178.3 120.5 176.7 120.3 175.4 118.6C174.4 117.1 174.0 113.2 174.0 103.0L174.0 89.3L171.2 88.0C166.7 85.8 150.7 85.5 145.5 87.5L141.0 89.2L141.0 102.9C141.0 113.2 140.6 117.1 139.6 118.6C138.3 120.3 136.7 120.5 123.7 120.8L109.2 121.1L107.8 124.3C105.9 128.9 106.0 146.6 108.0 150.5L109.5 153.5L123.5 153.8C141.7 154.1 141.0 153.4 141.0 171.5C141.0 186.4 141.1 186.5 148.1 187.9C154.3 189.1 157.6 189.1 165.0 187.9ZM589.0 187.4C589.0 187.0 590.5 182.7 592.2 177.7C595.2 169.6 597.1 166.8 598.6 168.3C599.1 168.8 606.0 186.8 606.0 187.6C606.0 188.8 602.1 187.8 601.6 186.5C601.3 185.5 599.7 185.0 597.0 185.0C594.1 185.0 593.0 185.4 593.0 186.5C593.0 187.3 592.1 188.0 591.0 188.0C589.9 188.0 589.0 187.7 589.0 187.4ZM598.9 178.0C598.3 176.3 597.7 175.0 597.5 175.0C597.3 175.0 596.7 176.3 596.1 178.0C595.2 180.8 595.3 181.0 597.5 181.0C599.7 181.0 599.8 180.8 598.9 178.0ZM548.9 159.6C537.2 155.4 531.0 143.5 534.4 131.7C537.2 122.2 545.7 115.8 555.9 115.7C569.4 115.6 580.2 127.1 578.7 139.9C576.9 155.0 562.5 164.5 548.9 159.6ZM630.9 159.7C614.3 153.5 610.1 133.7 622.8 121.8C628.8 116.2 635.1 114.3 642.4 116.0C651.1 117.9 655.8 121.7 659.0 129.3C663.3 139.2 659.6 151.0 650.3 157.2C645.2 160.6 636.4 161.7 630.9 159.7ZM566.0 155.0C577.4 146.9 578.9 132.9 569.3 123.8C565.6 120.2 561.6 118.8 555.5 118.9C549.3 118.9 545.0 121.0 541.1 125.7C530.0 139.2 540.9 159.3 558.4 157.5C561.1 157.2 564.5 156.1 566.0 155.0ZM648.0 155.0C656.9 148.7 660.1 138.2 655.7 129.5C654.2 126.4 649.8 122.0 646.6 120.3C642.4 118.1 634.2 118.3 629.3 120.9C610.2 130.6 619.0 159.7 640.4 157.5C643.1 157.2 646.5 156.1 648.0 155.0ZM548.0 148.4C548.0 148.0 549.3 145.6 550.9 143.0C552.5 140.4 553.5 137.8 553.1 137.4C552.7 136.9 551.3 134.8 550.1 132.8L547.8 129.0L550.2 129.0C552.0 129.0 553.1 129.9 554.2 132.2L555.7 135.5L557.4 132.2C558.4 130.2 559.8 129.0 561.0 129.0C563.5 129.0 563.5 129.6 560.5 134.5L558.1 138.4L561.1 143.7C564.0 148.8 564.1 149.0 562.0 149.0C560.7 149.0 559.2 147.7 557.8 145.4L555.7 141.8L553.8 145.4C552.6 147.7 551.2 149.0 550.0 149.0C548.9 149.0 548.0 148.7 548.0 148.4ZM632.0 139.0L632.0 129.0L637.2 129.0C640.1 129.0 643.3 129.7 644.2 130.4C646.2 131.9 646.6 136.5 644.9 137.6C644.1 138.0 644.1 138.5 644.9 139.3C646.5 140.9 646.2 145.6 644.4 147.4C643.4 148.5 641.0 149.0 637.4 149.0L632.0 149.0L632.0 139.0ZM642.5 144.1C643.3 142.8 640.2 140.0 637.9 140.0C636.5 140.0 636.0 140.7 636.0 142.5C636.0 144.6 636.5 145.0 638.9 145.0C640.6 145.0 642.1 144.6 642.5 144.1ZM641.7 135.4C642.4 133.6 640.5 132.0 637.8 132.0C636.5 132.0 636.0 132.8 636.0 134.5C636.0 136.5 636.5 137.0 638.5 137.0C639.9 137.0 641.3 136.3 641.7 135.4ZM588.0 116.9C580.2 113.4 576.0 107.9 574.6 99.4C573.1 90.6 579.1 79.6 587.5 75.5C592.0 73.4 601.2 73.4 606.2 75.4C617.4 80.1 622.8 93.6 618.0 104.8C612.8 116.9 599.6 122.2 588.0 116.9ZM606.0 113.5C614.4 109.2 618.3 100.0 615.6 90.8C613.1 82.1 606.2 77.0 597.2 77.0C584.5 77.0 574.8 89.1 578.1 100.8C580.5 109.3 588.9 115.9 597.3 116.0C599.4 116.0 603.3 114.9 606.0 113.5ZM595.0 102.5C595.0 99.6 594.1 96.1 592.5 93.0C589.5 87.1 589.5 87.0 591.8 87.0C593.0 87.0 594.3 88.4 595.5 91.0L597.3 95.0L599.1 91.0C600.4 88.2 601.5 87.0 603.0 87.0C604.9 87.0 604.9 87.2 602.0 93.0C600.1 96.7 599.0 100.5 599.0 103.0C599.0 106.3 598.7 107.0 597.0 107.0C595.3 107.0 595.0 106.3 595.0 102.5ZM232.4 96.6C229.0 95.1 225.6 88.4 226.6 85.3C229.3 77.0 231.9 76.0 250.5 76.0C266.1 76.0 269.3 76.8 272.4 81.2C273.3 82.4 274.0 85.0 274.0 87.0C274.0 91.2 272.0 94.5 268.0 96.5C264.1 98.5 237.0 98.6 232.4 96.6ZM485.3 96.0C478.8 92.1 478.0 84.8 483.4 79.4L486.8 76.0L502.3 76.0C510.7 76.0 519.0 76.5 520.6 77.0C528.9 80.0 529.5 93.2 521.4 96.8C519.9 97.6 513.1 98.0 503.7 98.0C490.4 98.0 488.1 97.7 485.3 96.0ZM267.0 93.5C272.3 90.7 272.2 83.2 266.9 80.4C264.4 79.2 261.0 78.9 248.8 79.2C234.4 79.5 233.7 79.6 231.9 81.9C229.0 85.4 229.4 90.4 232.8 92.9C235.2 94.7 237.0 94.9 249.8 95.0C260.7 95.0 264.8 94.6 267.0 93.5ZM521.4 92.9C523.4 91.3 524.0 90.0 524.0 86.9C524.0 83.5 523.5 82.7 520.8 81.0C517.9 79.3 515.7 79.0 503.5 79.0C494.3 79.0 488.7 79.5 487.0 80.3C483.8 81.9 482.3 86.1 483.6 89.7C485.2 94.2 488.1 95.0 504.1 95.0C517.4 95.0 519.0 94.8 521.4 92.9ZM496.0 91.0C496.0 90.4 499.3 90.0 504.0 90.0C508.7 90.0 512.0 90.4 512.0 91.0C512.0 91.6 508.7 92.0 504.0 92.0C499.3 92.0 496.0 91.6 496.0 91.0ZM248.0 88.5C248.0 86.1 248.3 86.0 253.5 86.0C258.7 86.0 259.0 86.1 259.0 88.5C259.0 90.9 258.7 91.0 253.5 91.0C248.3 91.0 248.0 90.9 248.0 88.5ZM242.0 85.5C242.0 83.1 242.2 83.0 247.8 83.2L253.5 83.4L248.6 83.7C244.4 84.1 243.9 84.4 244.3 86.1C244.6 87.3 244.3 88.0 243.4 88.0C242.6 88.0 242.0 87.0 242.0 85.5ZM496.0 87.0C496.0 86.4 499.3 86.0 504.0 86.0C508.7 86.0 512.0 86.4 512.0 87.0C512.0 87.6 508.7 88.0 504.0 88.0C499.3 88.0 496.0 87.6 496.0 87.0ZM496.0 83.0C496.0 82.4 499.3 82.0 504.0 82.0C508.7 82.0 512.0 82.4 512.0 83.0C512.0 83.6 508.7 84.0 504.0 84.0C499.3 84.0 496.0 83.6 496.0 83.0ZM123.1 52.5C139.8 43.8 167.2 37.8 203.0 34.9C211.0 34.3 217.6 33.7 217.8 33.5C218.0 33.4 216.9 31.9 215.6 30.2C212.1 26.1 206.5 24.9 190.9 24.9C166.9 24.9 142.3 30.3 129.9 38.3C123.4 42.5 116.9 49.3 114.0 55.1L111.8 59.3L115.1 57.1C117.0 55.9 120.5 53.9 123.1 52.5ZM640.1 55.2C630.0 35.5 602.8 24.9 562.2 24.9C549.1 24.9 547.2 25.2 543.1 27.2C540.7 28.5 538.0 30.5 537.3 31.7C535.9 33.8 536.0 33.8 544.7 34.5C583.0 37.3 606.0 41.7 625.0 49.9C629.7 51.9 635.3 54.8 637.5 56.3C639.7 57.8 641.6 59.0 641.8 59.0C641.9 59.0 641.2 57.3 640.1 55.2Z"/>
-          <circle class="artline" cx="376" cy="137" r="20"/>
-        </svg>
-        <div class="caption" id="caption">Press a button on the controller or select one here.</div>
-        <div class="legend"><span><i class="sw" style="border-color:var(--accent)"></i>Remapped</span><span><i class="sw" style="border-style:dashed"></i>Back grip</span></div>
+    <div class="card pbar">
+      <label class="field"><span>Editing</span><select id="prof" aria-label="Profile to edit"></select></label>
+      <label class="field"><span>Use</span><select id="mode" aria-label="Which profile the controller uses"></select></label>
+      <div class="pacts">
+        <span class="pstate" id="pstate">Saved</span>
+        <button id="exp" class="ghost" title="Download this profile as a file">Export</button>
+        <button id="imp" class="ghost" title="Load a profile file into this profile">Import</button>
+        <input type="file" id="impFile" accept=".ini,.txt,text/plain" hidden aria-label="Profile file to import">
+        <button id="del" class="ghost danger">Delete</button>
       </div>
-      <div class="card list" id="list"></div>
     </div>
-    <div class="card opts">
-      <div class="opt"><span>Left trackpad</span><div class="seg" data-k="LPAD"></div></div>
-      <div class="opt"><span>Right trackpad</span><div class="seg" data-k="RPAD"></div></div>
-      <label class="opt"><span>Invert left stick up/down</span><input type="checkbox" data-k="INVERT_LY"></label>
-      <label class="opt"><span>Invert right stick up/down</span><input type="checkbox" data-k="INVERT_RY"></label>
-      <label class="opt"><span>Swap left and right sticks</span><input type="checkbox" data-k="SWAP_STICKS"></label>
-      <label class="opt"><span>Stick deadzone <b id="dzv"></b></span><input type="range" min="0" max="40" data-k="DEADZONE"></label>
-      <label class="opt"><span>Shift button<br><small style="color:var(--muted)">Hold it to use each button's shift binding</small></span><select id="shiftSel" data-k="SHIFT"></select></label>
-      <label class="opt"><span>Long press time <b data-v="LONG_MS"></b></span><input type="range" min="150" max="1500" step="50" data-r="LONG_MS"></label>
-      <label class="opt"><span>Double press window <b data-v="DOUBLE_MS"></b></span><input type="range" min="100" max="800" step="25" data-r="DOUBLE_MS"></label>
-      <label class="opt"><span>Turbo speed <b data-v="TURBO_MS"></b></span><input type="range" min="20" max="300" step="10" data-r="TURBO_MS"></label>
-    </div>
-    <div class="card opts gyro">
-      <div class="opt ghead"><span><b>Gyro aiming</b><br><small>Turn and tilt the controller to aim. The gyro moves the right stick, so it works in any game, on top of the stick itself.</small></span>
-        <span class="glive"><span id="gyroLive">…</span><span class="gmeter" id="gyroMeter"><i></i></span></span></div>
-      <label class="opt"><span>Gyro aims</span><select data-g="GYRO">
-        <option value="OFF">Off</option>
-        <option value="GRIP">While holding either grip</option>
-        <option value="GRIPS">While holding both grips</option>
-        <option value="RPAD">While touching the right trackpad</option>
-        <option value="RSTICK">While touching the right stick</option>
-        <option value="ALWAYS">Always</option></select></label>
-      <div class="opt"><span>Left/right aim from</span><div class="seg" data-g="GYRO_AXIS"></div></div>
-      <label class="opt"><span>Left/right sensitivity <b data-gv="GYRO_SENS_X"></b></span><input type="range" min="1" max="100" data-gr="GYRO_SENS_X"></label>
-      <label class="opt"><span>Up/down sensitivity <b data-gv="GYRO_SENS_Y"></b></span><input type="range" min="1" max="100" data-gr="GYRO_SENS_Y"></label>
-      <label class="opt"><span>Anti-deadzone <b data-gv="GYRO_ANTI_DEADZONE"></b><br><small style="color:var(--muted)">Raise it if small movements don't move the camera</small></span><input type="range" min="0" max="40" data-gr="GYRO_ANTI_DEADZONE"></label>
-      <label class="opt"><span>Fine-aim steadiness <b data-gv="GYRO_STEADINESS"></b><br><small style="color:var(--muted)">Filters hand shake from tiny movements. Lower it if aiming feels stiff; raise it if the aim jitters</small></span><input type="range" min="0" max="30" data-gr="GYRO_STEADINESS"></label>
-      <label class="opt"><span>Game stick curve <b data-gv="GYRO_CURVE"></b><br><small style="color:var(--muted)">If the aim doesn't come back to where it started after looking away and back, raise this until it does</small></span><input type="range" min="10" max="30" data-gr="GYRO_CURVE"></label>
-      <label class="opt"><span>Invert gyro left/right</span><input type="checkbox" data-k="GYRO_INVERT_X"></label>
-      <label class="opt"><span>Invert gyro up/down</span><input type="checkbox" data-k="GYRO_INVERT_Y"></label>
-      <label class="opt motion"><span>Motion controls for games<br><small style="color:var(--muted)">Games that use the DualSense's motion (tilting, turning, shaking) get the Steam Controller's. Works with gyro aiming on or off</small></span><input type="checkbox" data-k="MOTION"></label>
-    </div>
-    <div class="card opts gyro flick">
-      <div class="opt ghead"><span><b>Flick stick</b><br><small>Point the right stick where you want to face: pushing it to the edge turns you that way, and rotating it around the edge keeps turning. Up and down are left to the gyro, so pair it with gyro aiming.</small></span></div>
-      <div class="opt"><span>Right stick</span><div class="seg" data-g="RSTICK"></div></div>
-      <label class="opt"><span>Game's turn speed <b data-gv="FLICK_SPEED"></b><br><small style="color:var(--muted)">How fast the game turns at full stick. Flick right: if you turn less than 90°, lower it; if more, raise it</small></span><input type="range" min="90" max="1440" step="10" data-gr="FLICK_SPEED"></label>
-    </div>
-    <div class="card opts gyro tfx">
-      <div class="opt ghead"><span><b>Trigger effects</b><br><small>When a game sets an adaptive trigger effect, you feel it as clicks and buzzes on that side as you pull the trigger. How strong is up to you.</small></span></div>
-      <div class="opt"><span>Strength</span><div class="seg" id="tfxPre"></div></div>
-      <label class="opt"><span>Fine-tune</span><span class="numrow"><input type="range" min="0" max="200" step="5" id="tfxRange"><input type="number" min="0" max="200" step="5" id="tfxNum" class="num"><span class="unit">%</span></span></label>
-    </div>
+    <nav class="sub" aria-label="Remap sections"><div class="subs">
+      <button data-sec="buttons">Buttons</button><button data-sec="sticks">Sticks &amp; trackpads</button><button data-sec="gyro">Gyro &amp; motion</button><button data-sec="flick">Flick stick</button><button data-sec="triggers">Triggers</button><button data-sec="timing">Shift &amp; timing</button>
+    </div></nav>
+
+    <section class="sec" data-sec="buttons" id="sec-buttons">
+      <div class="sech"><h2>Buttons</h2><small>Press a button on the controller to find it, or select one here to change what it does.</small></div>
+      <div class="grid">
+        <div class="card pad">
+          <svg id="padsvg" viewBox="-6 -58 758 664" role="group" aria-label="Controller layout. Select a control to remap it.">
+            <path class="padart" fill-rule="evenodd" d="M99.5 520.6C81.1 517.6 65.0 509.8 52.2 497.6C21.1 468.1 11.9 418.8 22.1 337.0C27.6 293.1 37.1 250.5 57.0 180.5C62.9 159.6 69.5 136.4 71.5 129.0C78.6 103.1 86.3 87.0 98.3 73.2C102.1 68.8 104.1 65.6 104.5 63.0C106.3 52.5 115.4 40.1 126.3 33.2C132.7 29.2 145.9 23.8 152.0 22.6C153.9 22.3 156.6 21.8 158.0 21.5C174.9 18.1 202.1 17.4 211.2 20.3C217.2 22.1 222.4 27.0 223.7 31.9C224.3 34.2 224.4 34.2 232.4 33.6C275.0 30.2 478.7 30.2 521.6 33.6L529.7 34.3L530.4 31.7C530.7 30.2 532.7 27.3 534.8 25.1C539.8 19.8 546.0 18.5 565.5 18.7C599.4 18.9 624.7 27.1 638.8 42.4C643.5 47.5 648.7 57.4 649.6 63.1C650.0 65.6 652.2 69.2 656.6 74.4C668.5 88.7 675.1 102.4 682.1 127.8C684.3 135.9 690.6 158.1 696.1 177.2C720.4 262.2 731.0 314.6 735.0 368.5C741.2 454.1 715.7 506.4 661.5 519.0C644.8 522.9 627.8 522.4 618.3 517.9C615.6 516.6 610.0 512.0 605.5 507.5C598.2 500.2 596.9 498.2 590.2 484.5C574.5 452.5 561.8 439.1 543.3 435.2C540.4 434.5 505.3 433.6 456.9 432.9C391.8 431.9 359.5 431.9 295.5 432.9C248.0 433.6 213.5 434.6 210.5 435.2C202.1 437.0 195.7 440.5 188.6 447.0C180.2 454.9 173.2 465.5 163.8 484.4C154.7 503.0 147.1 511.9 135.7 517.5C129.2 520.7 127.5 521.1 118.0 521.5C111.7 521.8 104.3 521.4 99.5 520.6ZM663.7 512.0C710.4 499.2 733.3 451.8 729.0 376.5C725.9 320.5 716.0 270.3 691.1 183.0C686.2 165.7 679.9 143.4 677.2 133.5C668.0 100.5 662.3 89.3 646.0 73.0C634.2 61.1 629.2 58.0 612.9 52.6C583.3 42.7 549.8 39.8 442.4 37.8C343.7 36.0 225.0 38.6 183.5 43.5C160.2 46.3 138.0 52.2 124.5 59.3C116.1 63.7 102.1 77.5 94.9 88.4C87.8 99.2 82.6 112.1 76.7 134.0C74.2 143.1 68.1 164.9 63.0 182.5C46.3 240.6 36.0 284.8 30.6 321.5C20.4 391.2 22.7 436.6 38.2 467.5C47.7 486.2 58.9 497.9 75.7 506.4C87.4 512.2 95.6 514.1 111.8 514.7L126.0 515.3L132.3 512.2C142.8 507.0 149.4 499.1 158.5 481.0C168.5 460.9 173.6 453.1 182.9 444.0C191.1 435.8 197.4 432.0 206.6 429.4C221.6 425.2 532.4 425.2 547.4 429.4C556.6 432.0 562.8 435.8 571.1 444.0C580.3 453.1 584.7 459.8 595.2 480.5C604.3 498.4 611.3 507.0 620.5 511.8C629.1 516.2 647.9 516.3 663.7 512.0ZM98.4 470.8C99.2 457.2 99.6 451.8 101.6 433.5C102.4 425.8 103.2 417.5 103.5 415.0C104.8 402.0 107.2 381.8 108.0 377.0C108.5 374.0 109.2 369.5 109.5 367.0C109.8 364.5 110.3 361.4 110.5 360.0C110.7 358.6 111.4 354.4 112.0 350.5C116.8 319.3 121.0 297.4 126.4 275.0C129.9 260.3 132.5 252.6 136.2 246.1C148.5 224.4 168.3 214.5 205.2 211.7C215.6 211.0 221.0 210.2 221.0 209.4C221.0 208.8 220.4 206.3 219.7 203.9C217.9 198.0 217.6 185.4 219.0 178.2C223.0 158.3 239.9 140.7 260.0 135.5C277.6 130.9 299.3 136.7 312.1 149.3C327.3 164.2 332.8 184.4 327.5 205.3L326.8 208.0L377.0 208.0L427.2 208.0L426.6 205.8C424.4 197.8 423.9 188.7 425.3 180.6C433.1 135.9 487.1 118.4 519.3 150.2C527.4 158.2 532.8 167.8 534.9 177.8C536.4 185.2 536.3 196.6 534.5 203.3C533.7 206.5 533.0 209.4 533.0 209.8C533.0 210.3 540.3 211.1 549.2 211.8C582.3 214.3 600.3 222.0 614.2 239.7C617.1 243.5 622.8 256.3 624.9 263.9C632.3 290.5 641.9 344.2 647.9 392.5C652.7 431.0 657.1 480.8 655.7 481.7C653.8 482.8 653.2 480.0 652.1 465.0C647.2 400.5 636.3 325.0 624.9 277.0C619.1 252.5 614.1 242.2 603.6 233.1C593.6 224.4 579.6 218.6 564.0 216.4C562.1 216.2 559.1 215.8 557.5 215.5C555.9 215.3 549.3 214.8 542.9 214.4L531.3 213.8L529.0 217.6C522.7 227.9 513.6 236.1 503.2 240.7C497.4 243.3 496.5 243.5 489.5 245.0C483.9 246.2 471.5 245.4 465.0 243.5C451.4 239.4 437.3 228.2 431.5 216.7L428.5 211.0L377.1 211.2L325.7 211.5L321.8 218.0C317.7 224.9 309.4 233.4 302.8 237.6C290.3 245.5 271.5 247.7 256.9 243.1C244.8 239.3 231.1 228.4 225.8 218.3C223.6 214.1 223.4 214.0 218.5 214.0C215.8 214.0 208.4 214.5 202.1 215.0C163.9 218.4 145.3 230.3 134.1 258.3C132.9 261.3 128.4 279.6 125.5 293.0C123.4 302.8 119.4 324.6 116.5 342.1C112.8 363.9 108.3 397.8 106.0 421.5C104.9 432.5 103.8 442.6 103.5 444.0C103.3 445.4 102.8 451.4 102.4 457.5C102.0 463.6 101.6 469.2 101.4 470.0C101.3 470.8 101.1 473.9 101.1 476.8C101.0 480.9 100.7 482.0 99.4 482.0C97.9 482.0 97.8 480.8 98.4 470.8ZM265.5 403.9C255.5 402.0 221.9 396.2 193.5 391.4C175.1 388.3 169.6 386.0 164.2 379.2C157.6 370.8 156.9 364.5 160.5 346.5C161.2 342.6 162.1 337.5 162.5 335.0C162.8 332.5 163.9 326.0 165.0 320.5C166.0 315.0 167.1 309.1 167.3 307.5C170.0 289.0 175.6 260.5 177.2 256.7C179.9 250.5 186.8 244.4 193.3 242.5C199.7 240.6 202.4 240.6 213.0 242.5C217.7 243.4 231.8 245.9 244.5 248.0C288.4 255.5 304.7 258.8 308.7 260.9C314.2 263.7 319.7 270.4 321.5 276.4C323.8 284.0 323.8 283.7 318.5 312.5C316.8 321.7 316.5 323.2 314.4 335.5C313.6 340.4 312.5 347.3 312.0 350.8C311.4 354.2 310.6 358.9 310.1 361.3C309.2 365.2 308.8 367.6 307.4 376.8C307.1 378.8 306.1 383.2 305.2 386.5C302.2 397.6 290.5 406.3 279.1 405.9C277.1 405.8 271.0 404.9 265.5 403.9ZM465.6 404.4C459.2 402.4 451.0 394.3 449.2 388.2C448.5 385.9 444.1 362.0 439.4 335.2C430.3 283.2 430.0 279.8 433.9 272.1C436.5 267.1 442.7 261.7 448.1 259.6C450.5 258.8 462.6 256.2 475.0 254.1C487.4 251.9 507.9 248.3 520.5 246.1C552.0 240.6 553.6 240.4 560.4 242.4C567.5 244.5 574.8 251.3 577.3 258.0C579.0 262.5 596.0 358.3 596.0 363.1C596.0 364.5 595.3 368.0 594.4 370.9C592.5 377.5 585.4 385.0 579.0 387.4C574.1 389.1 477.9 406.0 473.3 405.9C471.8 405.9 468.3 405.2 465.6 404.4ZM285.5 401.9C293.5 399.8 301.1 392.2 302.5 384.8C303.5 380.2 313.0 325.6 313.6 321.5C313.9 319.9 314.5 316.5 315.0 314.0C315.5 311.5 316.9 303.6 318.1 296.3C320.0 284.0 320.1 282.7 318.6 277.8C316.7 271.3 310.9 264.9 304.8 262.6C302.4 261.7 296.4 260.3 291.5 259.4C286.6 258.6 272.1 256.1 259.5 253.9C246.8 251.7 231.3 249.0 225.0 247.9C200.5 243.6 200.2 243.6 194.5 245.4C188.4 247.3 182.5 252.5 179.9 258.4C178.9 260.7 177.0 269.5 175.6 278.0C172.6 295.9 172.3 297.8 171.0 304.5C170.4 307.2 168.9 316.0 167.6 324.0C164.3 343.3 164.1 344.5 162.9 351.5C161.0 361.8 160.9 364.0 162.1 368.2C164.1 375.9 169.8 382.1 177.0 384.6C180.1 385.7 189.8 387.5 213.0 391.5C230.9 394.6 254.0 398.6 264.0 400.5C278.9 403.2 280.3 403.3 285.5 401.9ZM529.2 393.5C581.7 384.4 582.8 384.0 588.0 376.3C594.0 367.1 594.0 367.9 584.5 313.0C579.8 285.8 575.3 261.7 574.5 259.4C571.7 251.9 564.4 246.0 555.9 244.5C551.9 243.8 454.9 260.2 449.2 262.6C441.1 266.0 435.7 272.6 434.5 280.7C433.6 287.2 450.3 382.8 453.5 389.5C457.8 398.3 467.2 403.5 477.0 402.4C479.5 402.1 503.0 398.1 529.2 393.5ZM354.1 335.8C348.3 332.7 345.9 325.2 349.0 319.5C351.7 314.5 354.0 314.0 377.5 314.0C398.2 314.0 399.2 314.1 402.1 316.2C407.9 320.5 407.9 329.3 402.0 334.5C400.0 336.4 398.2 336.5 378.1 336.8C362.2 337.0 355.9 336.7 354.1 335.8ZM400.4 331.5C404.1 328.1 404.2 323.0 400.7 319.2C398.7 317.1 398.2 317.0 377.5 317.0C357.5 317.0 356.1 317.1 353.6 319.1C349.2 322.6 350.2 329.9 355.5 332.9C356.8 333.6 364.6 334.0 377.7 333.9C397.5 333.9 397.9 333.8 400.4 331.5ZM385.4 326.6C384.5 324.2 386.6 322.2 388.2 323.8C389.1 324.8 389.0 325.4 387.7 326.7C386.2 328.2 386.0 328.2 385.4 326.6ZM365.2 325.2C365.4 324.3 366.2 323.5 367.0 323.5C367.8 323.5 368.6 324.3 368.8 325.2C369.0 326.5 368.5 327.0 367.0 327.0C365.5 327.0 365.0 326.5 365.2 325.2ZM375.2 325.2C375.4 324.3 376.2 323.5 377.0 323.5C377.8 323.5 378.6 324.3 378.8 325.2C379.0 326.5 378.5 327.0 377.0 327.0C375.5 327.0 375.0 326.5 375.2 325.2ZM286.5 240.8C304.6 236.7 319.7 221.5 325.0 202.1C327.8 191.7 325.6 174.7 320.2 164.5C316.5 157.7 305.8 147.2 298.4 143.3C268.1 127.2 231.4 143.6 222.5 177.0C217.9 194.3 224.0 215.2 237.3 227.7C251.3 240.8 267.4 245.1 286.5 240.8ZM490.3 241.6C491.5 241.3 493.5 240.9 494.6 240.6C501.5 239.1 510.9 233.4 517.5 226.6C551.6 192.1 525.3 134.2 477.0 137.3C454.4 138.8 435.0 154.7 429.0 176.9C427.4 182.8 427.7 196.4 429.5 203.3C433.1 216.9 442.2 228.7 454.5 235.5C465.7 241.7 478.9 243.9 490.3 241.6ZM263.3 222.2C248.2 216.8 239.7 204.9 239.8 189.2C239.9 168.9 257.5 153.7 278.0 156.1C298.3 158.5 312.2 179.1 306.6 198.5C304.5 205.4 302.9 208.1 297.6 213.8C289.2 222.6 274.5 226.2 263.3 222.2ZM472.0 223.1C458.5 218.6 450.6 210.5 447.4 197.8C441.8 175.9 458.3 155.7 481.6 155.9C495.4 156.0 508.5 165.8 513.0 179.5C515.0 185.5 514.5 195.5 512.0 202.3C509.3 209.4 501.6 217.6 494.5 220.9C489.2 223.4 476.6 224.6 472.0 223.1ZM286.5 217.9C293.7 214.3 297.7 210.3 301.2 203.3C304.0 197.6 304.4 195.6 304.4 189.5C304.2 172.6 292.3 160.0 275.5 159.2C262.2 158.5 250.8 165.3 245.5 177.1C243.1 182.6 242.8 184.1 243.2 191.5C243.7 200.6 246.0 205.8 252.2 211.9C261.1 220.7 275.7 223.3 286.5 217.9ZM493.7 217.6C505.5 211.7 511.5 201.1 510.8 188.0C509.8 171.7 498.8 160.4 482.9 159.2C473.7 158.6 466.3 161.0 459.9 166.8C451.4 174.4 448.0 184.2 450.1 195.4C453.6 215.1 476.1 226.6 493.7 217.6ZM589.7 200.0C585.3 198.7 580.3 194.3 577.3 189.2C572.0 180.3 574.2 168.4 582.6 161.1C587.2 157.0 589.9 156.0 596.4 156.0C606.6 156.0 613.3 159.9 617.4 168.2C626.4 186.2 609.2 205.8 589.7 200.0ZM606.1 195.2C614.9 190.8 618.7 181.6 615.5 172.1C608.7 151.4 577.6 156.8 577.8 178.6C577.8 184.6 579.5 188.3 584.1 192.8C590.0 198.6 597.8 199.4 606.1 195.2ZM149.5 191.6C148.9 191.4 146.6 190.7 144.2 189.9C141.8 189.2 139.5 187.9 138.9 186.9C138.4 185.9 138.0 179.3 138.0 172.3C138.0 163.6 137.6 159.0 136.8 158.2C136.0 157.4 131.3 157.0 122.3 157.0C110.3 157.0 108.9 156.8 107.2 155.0C104.2 151.7 103.0 146.2 103.3 135.5C103.5 127.5 103.9 124.8 105.6 122.0L107.6 118.5L121.5 118.2C129.6 118.1 135.9 117.5 136.7 116.8C137.7 116.0 138.0 112.2 138.0 102.0C138.0 84.2 137.9 84.3 155.2 83.3C164.6 82.7 172.3 84.0 175.2 86.7C176.8 88.1 177.0 90.2 177.0 102.1C177.0 112.0 177.3 116.1 178.2 116.7C178.9 117.1 185.8 117.7 193.5 118.0L207.5 118.5L209.5 122.5C211.1 125.8 211.5 128.5 211.5 137.5C211.5 146.5 211.1 149.2 209.5 152.5L207.5 156.5L194.5 156.7C175.2 157.1 177.0 155.6 177.0 171.4C177.0 178.8 176.7 185.6 176.4 186.5C175.8 188.0 173.2 189.5 169.0 190.8C167.1 191.4 150.8 192.0 149.5 191.6ZM165.0 187.9C168.5 187.4 172.0 186.4 172.7 185.8C173.6 185.1 174.0 181.1 174.0 171.6C174.0 161.8 174.4 157.9 175.4 156.4C176.7 154.7 178.5 154.4 191.2 154.0L205.5 153.5L207.0 150.5C209.0 146.6 209.1 128.9 207.2 124.3L205.8 121.1L191.3 120.8C178.3 120.5 176.7 120.3 175.4 118.6C174.4 117.1 174.0 113.2 174.0 103.0L174.0 89.3L171.2 88.0C166.7 85.8 150.7 85.5 145.5 87.5L141.0 89.2L141.0 102.9C141.0 113.2 140.6 117.1 139.6 118.6C138.3 120.3 136.7 120.5 123.7 120.8L109.2 121.1L107.8 124.3C105.9 128.9 106.0 146.6 108.0 150.5L109.5 153.5L123.5 153.8C141.7 154.1 141.0 153.4 141.0 171.5C141.0 186.4 141.1 186.5 148.1 187.9C154.3 189.1 157.6 189.1 165.0 187.9ZM589.0 187.4C589.0 187.0 590.5 182.7 592.2 177.7C595.2 169.6 597.1 166.8 598.6 168.3C599.1 168.8 606.0 186.8 606.0 187.6C606.0 188.8 602.1 187.8 601.6 186.5C601.3 185.5 599.7 185.0 597.0 185.0C594.1 185.0 593.0 185.4 593.0 186.5C593.0 187.3 592.1 188.0 591.0 188.0C589.9 188.0 589.0 187.7 589.0 187.4ZM598.9 178.0C598.3 176.3 597.7 175.0 597.5 175.0C597.3 175.0 596.7 176.3 596.1 178.0C595.2 180.8 595.3 181.0 597.5 181.0C599.7 181.0 599.8 180.8 598.9 178.0ZM548.9 159.6C537.2 155.4 531.0 143.5 534.4 131.7C537.2 122.2 545.7 115.8 555.9 115.7C569.4 115.6 580.2 127.1 578.7 139.9C576.9 155.0 562.5 164.5 548.9 159.6ZM630.9 159.7C614.3 153.5 610.1 133.7 622.8 121.8C628.8 116.2 635.1 114.3 642.4 116.0C651.1 117.9 655.8 121.7 659.0 129.3C663.3 139.2 659.6 151.0 650.3 157.2C645.2 160.6 636.4 161.7 630.9 159.7ZM566.0 155.0C577.4 146.9 578.9 132.9 569.3 123.8C565.6 120.2 561.6 118.8 555.5 118.9C549.3 118.9 545.0 121.0 541.1 125.7C530.0 139.2 540.9 159.3 558.4 157.5C561.1 157.2 564.5 156.1 566.0 155.0ZM648.0 155.0C656.9 148.7 660.1 138.2 655.7 129.5C654.2 126.4 649.8 122.0 646.6 120.3C642.4 118.1 634.2 118.3 629.3 120.9C610.2 130.6 619.0 159.7 640.4 157.5C643.1 157.2 646.5 156.1 648.0 155.0ZM548.0 148.4C548.0 148.0 549.3 145.6 550.9 143.0C552.5 140.4 553.5 137.8 553.1 137.4C552.7 136.9 551.3 134.8 550.1 132.8L547.8 129.0L550.2 129.0C552.0 129.0 553.1 129.9 554.2 132.2L555.7 135.5L557.4 132.2C558.4 130.2 559.8 129.0 561.0 129.0C563.5 129.0 563.5 129.6 560.5 134.5L558.1 138.4L561.1 143.7C564.0 148.8 564.1 149.0 562.0 149.0C560.7 149.0 559.2 147.7 557.8 145.4L555.7 141.8L553.8 145.4C552.6 147.7 551.2 149.0 550.0 149.0C548.9 149.0 548.0 148.7 548.0 148.4ZM632.0 139.0L632.0 129.0L637.2 129.0C640.1 129.0 643.3 129.7 644.2 130.4C646.2 131.9 646.6 136.5 644.9 137.6C644.1 138.0 644.1 138.5 644.9 139.3C646.5 140.9 646.2 145.6 644.4 147.4C643.4 148.5 641.0 149.0 637.4 149.0L632.0 149.0L632.0 139.0ZM642.5 144.1C643.3 142.8 640.2 140.0 637.9 140.0C636.5 140.0 636.0 140.7 636.0 142.5C636.0 144.6 636.5 145.0 638.9 145.0C640.6 145.0 642.1 144.6 642.5 144.1ZM641.7 135.4C642.4 133.6 640.5 132.0 637.8 132.0C636.5 132.0 636.0 132.8 636.0 134.5C636.0 136.5 636.5 137.0 638.5 137.0C639.9 137.0 641.3 136.3 641.7 135.4ZM588.0 116.9C580.2 113.4 576.0 107.9 574.6 99.4C573.1 90.6 579.1 79.6 587.5 75.5C592.0 73.4 601.2 73.4 606.2 75.4C617.4 80.1 622.8 93.6 618.0 104.8C612.8 116.9 599.6 122.2 588.0 116.9ZM606.0 113.5C614.4 109.2 618.3 100.0 615.6 90.8C613.1 82.1 606.2 77.0 597.2 77.0C584.5 77.0 574.8 89.1 578.1 100.8C580.5 109.3 588.9 115.9 597.3 116.0C599.4 116.0 603.3 114.9 606.0 113.5ZM595.0 102.5C595.0 99.6 594.1 96.1 592.5 93.0C589.5 87.1 589.5 87.0 591.8 87.0C593.0 87.0 594.3 88.4 595.5 91.0L597.3 95.0L599.1 91.0C600.4 88.2 601.5 87.0 603.0 87.0C604.9 87.0 604.9 87.2 602.0 93.0C600.1 96.7 599.0 100.5 599.0 103.0C599.0 106.3 598.7 107.0 597.0 107.0C595.3 107.0 595.0 106.3 595.0 102.5ZM232.4 96.6C229.0 95.1 225.6 88.4 226.6 85.3C229.3 77.0 231.9 76.0 250.5 76.0C266.1 76.0 269.3 76.8 272.4 81.2C273.3 82.4 274.0 85.0 274.0 87.0C274.0 91.2 272.0 94.5 268.0 96.5C264.1 98.5 237.0 98.6 232.4 96.6ZM485.3 96.0C478.8 92.1 478.0 84.8 483.4 79.4L486.8 76.0L502.3 76.0C510.7 76.0 519.0 76.5 520.6 77.0C528.9 80.0 529.5 93.2 521.4 96.8C519.9 97.6 513.1 98.0 503.7 98.0C490.4 98.0 488.1 97.7 485.3 96.0ZM267.0 93.5C272.3 90.7 272.2 83.2 266.9 80.4C264.4 79.2 261.0 78.9 248.8 79.2C234.4 79.5 233.7 79.6 231.9 81.9C229.0 85.4 229.4 90.4 232.8 92.9C235.2 94.7 237.0 94.9 249.8 95.0C260.7 95.0 264.8 94.6 267.0 93.5ZM521.4 92.9C523.4 91.3 524.0 90.0 524.0 86.9C524.0 83.5 523.5 82.7 520.8 81.0C517.9 79.3 515.7 79.0 503.5 79.0C494.3 79.0 488.7 79.5 487.0 80.3C483.8 81.9 482.3 86.1 483.6 89.7C485.2 94.2 488.1 95.0 504.1 95.0C517.4 95.0 519.0 94.8 521.4 92.9ZM496.0 91.0C496.0 90.4 499.3 90.0 504.0 90.0C508.7 90.0 512.0 90.4 512.0 91.0C512.0 91.6 508.7 92.0 504.0 92.0C499.3 92.0 496.0 91.6 496.0 91.0ZM248.0 88.5C248.0 86.1 248.3 86.0 253.5 86.0C258.7 86.0 259.0 86.1 259.0 88.5C259.0 90.9 258.7 91.0 253.5 91.0C248.3 91.0 248.0 90.9 248.0 88.5ZM242.0 85.5C242.0 83.1 242.2 83.0 247.8 83.2L253.5 83.4L248.6 83.7C244.4 84.1 243.9 84.4 244.3 86.1C244.6 87.3 244.3 88.0 243.4 88.0C242.6 88.0 242.0 87.0 242.0 85.5ZM496.0 87.0C496.0 86.4 499.3 86.0 504.0 86.0C508.7 86.0 512.0 86.4 512.0 87.0C512.0 87.6 508.7 88.0 504.0 88.0C499.3 88.0 496.0 87.6 496.0 87.0ZM496.0 83.0C496.0 82.4 499.3 82.0 504.0 82.0C508.7 82.0 512.0 82.4 512.0 83.0C512.0 83.6 508.7 84.0 504.0 84.0C499.3 84.0 496.0 83.6 496.0 83.0ZM123.1 52.5C139.8 43.8 167.2 37.8 203.0 34.9C211.0 34.3 217.6 33.7 217.8 33.5C218.0 33.4 216.9 31.9 215.6 30.2C212.1 26.1 206.5 24.9 190.9 24.9C166.9 24.9 142.3 30.3 129.9 38.3C123.4 42.5 116.9 49.3 114.0 55.1L111.8 59.3L115.1 57.1C117.0 55.9 120.5 53.9 123.1 52.5ZM640.1 55.2C630.0 35.5 602.8 24.9 562.2 24.9C549.1 24.9 547.2 25.2 543.1 27.2C540.7 28.5 538.0 30.5 537.3 31.7C535.9 33.8 536.0 33.8 544.7 34.5C583.0 37.3 606.0 41.7 625.0 49.9C629.7 51.9 635.3 54.8 637.5 56.3C639.7 57.8 641.6 59.0 641.8 59.0C641.9 59.0 641.2 57.3 640.1 55.2Z"/>
+            <circle class="artline" cx="376" cy="137" r="20"/>
+          </svg>
+          <div class="caption" id="caption">Press a button on the controller or select one here.</div>
+          <div class="legend"><span><i class="sw" style="border-color:var(--accent)"></i>Remapped</span><span><i class="sw" style="border-style:dashed"></i>Back grip</span></div>
+        </div>
+        <div class="card list" id="list"></div>
+      </div>
+    </section>
+
+    <section class="sec" data-sec="sticks" id="sec-sticks">
+      <div class="sech"><h2>Sticks &amp; trackpads</h2><small>What the trackpads do, and how the sticks feel.</small></div>
+      <div class="card"><div class="rows">
+        <div class="opt"><span class="lbl">Left trackpad</span><div class="seg" data-k="LPAD" role="group" aria-label="Left trackpad mode"></div></div>
+        <div class="opt"><span class="lbl">Right trackpad</span><div class="seg" data-k="RPAD" role="group" aria-label="Right trackpad mode"></div></div>
+        <label class="opt"><span class="lbl">Invert left stick up/down</span><input type="checkbox" data-k="INVERT_LY"></label>
+        <label class="opt"><span class="lbl">Invert right stick up/down</span><input type="checkbox" data-k="INVERT_RY"></label>
+        <label class="opt"><span class="lbl">Swap left and right sticks</span><input type="checkbox" data-k="SWAP_STICKS"></label>
+        <div data-sl="DEADZONE"><b>Stick deadzone</b><small>Raise it if a stick drifts when you let go</small></div>
+      </div></div>
+    </section>
+
+    <section class="sec" data-sec="gyro" id="sec-gyro">
+      <div class="sech"><h2>Gyro &amp; motion</h2><small>Aim by moving the controller.</small></div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="ch"><div><h3>Gyro aiming</h3><p>Turn and tilt the controller to aim. The gyro moves the right stick, so it works in any game, on top of the stick itself.</p></div>
+          <span class="glive"><span id="gyroLive">…</span><span class="gmeter" id="gyroMeter"><i></i></span></span></div>
+        <div class="rows" id="gyroOpts">
+          <label class="opt keep full"><span class="lbl">Gyro aims</span><select data-g="GYRO">
+            <option value="OFF">Off</option>
+            <option value="GRIP">While holding either grip</option>
+            <option value="GRIPS">While holding both grips</option>
+            <option value="RPAD">While touching the right trackpad</option>
+            <option value="RSTICK">While touching the right stick</option>
+            <option value="ALWAYS">Always</option></select></label>
+          <div class="opt"><span class="lbl">Left/right aim from<small>Turning the controller like a steering wheel is "Tilting"</small></span><div class="seg" data-g="GYRO_AXIS" role="group" aria-label="Left/right aim axis"></div></div>
+          <label class="opt"><span class="lbl">Invert gyro left/right</span><input type="checkbox" data-k="GYRO_INVERT_X"></label>
+          <div data-sl="GYRO_SENS_X"><b>Left/right sensitivity</b></div>
+          <div data-sl="GYRO_SENS_Y"><b>Up/down sensitivity</b></div>
+          <details class="adv" id="gyroAdv"><summary>Fine-tuning</summary><div class="rows">
+            <div data-sl="GYRO_ANTI_DEADZONE"><b>Anti-deadzone</b><small>Raise it if small movements don't move the camera</small></div>
+            <div data-sl="GYRO_STEADINESS"><b>Fine-aim steadiness</b><small>Filters hand shake from tiny movements. Lower it if aiming feels stiff; raise it if the aim jitters</small></div>
+            <div data-sl="GYRO_CURVE"><b>Game stick curve</b><small>If the aim doesn't come back to where it started after looking away and back, raise this until it does</small></div>
+            <label class="opt"><span class="lbl">Invert gyro up/down</span><input type="checkbox" data-k="GYRO_INVERT_Y"></label>
+          </div></details>
+        </div>
+      </div>
+      <div class="card"><div class="rows">
+        <label class="opt full"><span class="lbl"><b>Motion controls for games</b><small>Games that use the DualSense's motion (tilting, turning, shaking) get the Steam Controller's. Works with gyro aiming on or off.</small></span><input type="checkbox" data-k="MOTION"></label>
+      </div></div>
+    </section>
+
+    <section class="sec" data-sec="flick" id="sec-flick">
+      <div class="sech"><h2>Flick stick</h2><small>Turn with the right stick, aim with the gyro.</small></div>
+      <div class="card">
+        <div class="ch"><div><h3>Right stick as flick stick</h3><p>Point the right stick where you want to face: pushing it to the edge turns you that way, and rotating it around the edge keeps turning. Up and down are left to the gyro, so pair it with gyro aiming.</p></div></div>
+        <div class="rows" id="flickOpts">
+          <div class="opt keep"><span class="lbl">Right stick</span><div class="seg" data-g="RSTICK" role="group" aria-label="Right stick mode"></div></div>
+          <div data-sl="FLICK_SPEED"><b>Game's turn speed</b><small>How fast the game turns at full stick. Flick right: if you turn less than 90°, lower it; if more, raise it</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" data-sec="triggers" id="sec-triggers">
+      <div class="sech"><h2>Triggers</h2><small>Feel the game's adaptive trigger effects.</small></div>
+      <div class="card tfx">
+        <div class="ch"><div><h3>Trigger effects</h3><p>When a game sets an adaptive trigger effect, you feel it as clicks and buzzes on that side as you pull the trigger. How strong is up to you.</p></div></div>
+        <div class="rows">
+          <div class="opt"><span class="lbl">Strength</span><div class="seg" id="tfxPre" role="group" aria-label="Trigger effect strength preset"></div></div>
+          <div data-sl="TRIGGER_FX"><b>Fine-tune</b><small>100% is the strength the game asked for</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec" data-sec="timing" id="sec-timing">
+      <div class="sech"><h2>Shift &amp; timing</h2><small>For the long press, double press, shift and turbo activators.</small></div>
+      <div class="card"><div class="rows">
+        <label class="opt full"><span class="lbl">Shift button<small>Hold it to use each button's shift binding</small></span><select id="shiftSel" data-k="SHIFT"></select></label>
+        <div data-sl="LONG_MS"><b>Long press time</b><small>Hold a button this long to trigger its long-press binding</small></div>
+        <div data-sl="DOUBLE_MS"><b>Double press window</b><small>Two presses within this time count as a double press</small></div>
+        <div data-sl="TURBO_MS" class="full"><b>Turbo speed</b><small>Time between repeats while a turbo button is held</small></div>
+      </div></div>
+    </section>
   </section>
 
   <!-- GAMES -->
@@ -306,70 +444,68 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
     <div class="games" id="games"></div>
   </section>
 
-  <!-- HELP -->
+  <!-- SETTINGS & HELP -->
   <section id="tab-help" hidden>
+    <nav class="sub" aria-label="Settings sections"><div class="subs">
+      <button data-sec="setup">Quick setup</button><button data-sec="pause">Pause</button><button data-sec="handoff">DualSense hand-off</button><button data-sec="ingame">In games</button><button data-sec="vibration">Vibration test</button><button data-sec="menu">On-console menu</button><button data-sec="bridge">Game bridge check</button><button data-sec="log">Troubleshooting log</button>
+    </div></nav>
     <div class="help">
-      <div class="card" style="grid-column:1/-1">
-        <h2>Quick setup</h2>
-        <p>Recommended: play with the Steam Controller as your main controller, with game rumble sent to it. Turn the Steam Controller off at any time and your DualSense takes over; wake the Steam Controller with its <b>Steam</b> button to switch back.</p>
-        <div class="btns"><button class="primary" id="ghRec">Use recommended settings</button></div>
-      </div>
-      <div class="card" style="grid-column:1/-1">
-        <h2>Pause Puckbridge</h2>
-        <p>Hold the Steam Controller's <kbd>…</kbd> button for 5 seconds, anywhere (in a game or on the home screen), to pause Puckbridge: the Steam Controller stops sending input and your DualSense works exactly as normal. Hold it for 5 seconds again to resume. The controller gives a long buzz when pausing and a short one when resuming.</p>
-        <div class="btns"><button id="pauseBtn">Pause now</button></div>
-      </div>
-      <div class="card" style="grid-column:1/-1">
-        <h2>DualSense hand-off</h2>
-        <label class="opt" style="padding:8px 0;border:0"><span><b>Turn the DualSense off while the Steam Controller is in control</b><br><small style="color:var(--muted)">When you start using the Steam Controller, the DualSense is disconnected, so it can't rumble, light up or play sound. Press its PS button to switch back: the DualSense takes over and the Steam Controller steps aside until you press its Steam button. Experimental.</small></span><input type="checkbox" id="dsOff"></label>
-        <p id="dsStatus" style="min-height:1.4em;margin:4px 0 0">&nbsp;</p>
-      </div>
-      <div class="card">
-        <h2>In games</h2>
-        <label class="opt" style="padding:8px 0;border:0"><span><b>Use the Steam Controller in games</b><br><small style="color:var(--muted)">Merges it into your player's controller, so it works alongside the DualSense.</small></span><input type="checkbox" id="ghIn"></label>
-        <label class="opt" style="padding:8px 0;border:0"><span><b>Send game vibration to the Steam Controller</b><br><small style="color:var(--muted)">Goes to whichever controller is in control.</small></span><input type="checkbox" id="ghVib"></label>
-        <label class="opt" style="padding:8px 0;border:0"><span><b>Move DualSense haptics and speaker</b><br><small style="color:var(--muted)">PS5 games: haptics become Steam Controller rumble, and the DualSense speaker is muted while the Steam Controller is in control. Hooks attach as the game starts, so restart the game after changing this.</small></span><input type="checkbox" id="ghAud"></label>
-        <label style="display:block;padding:8px 0"><b>When the DualSense is also on</b>
-          <select id="ghMode" style="display:block;width:100%;margin-top:8px"><option value="1">The one you touched last controls the game</option><option value="2">Only the Steam Controller</option><option value="0">Both at once</option></select></label>
-        <p id="ghStatus" style="min-height:2.8em;margin:4px 0 18px">&nbsp;</p>
-        <h2>Vibration test</h2>
-        <p id="hapNote">Checks the controller's haptics. If nothing happens, try each method and then send the log.</p>
-        <div class="btns" style="margin-bottom:10px">
-          <select id="hapVia" aria-label="Send method"><option value="0">Method: automatic</option><option value="1">Method 1: interrupt OUT</option><option value="2">Method 2: output report</option><option value="3">Method 3: feature report</option><option value="4">Method 4: every Puck output</option></select>
+      <section class="sec wide card" data-sec="setup" id="sec-setup">
+        <div class="ch"><div><h3>Quick setup</h3><p>Recommended: play with the Steam Controller as your main controller, with game rumble sent to it. Turn the Steam Controller off at any time and your DualSense takes over; wake the Steam Controller with its <b>Steam</b> button to switch back.</p></div></div>
+        <div class="body"><div class="btns"><button class="primary" id="ghRec">Use recommended settings</button></div></div>
+      </section>
+      <section class="sec card" data-sec="pause" id="sec-pause">
+        <div class="ch"><div><h3>Pause Puckbridge</h3><p>Hold the Steam Controller's <kbd>…</kbd> button for 5 seconds, anywhere (in a game or on the home screen), to pause Puckbridge: the Steam Controller stops sending input and your DualSense works exactly as normal. Hold it for 5 seconds again to resume. The controller gives a long buzz when pausing and a short one when resuming.</p></div></div>
+        <div class="body"><div class="btns"><button id="pauseBtn">Pause now</button></div></div>
+      </section>
+      <section class="sec card" data-sec="handoff" id="sec-handoff">
+        <div class="ch"><div><h3>DualSense hand-off</h3><p>Hand the game to whichever controller you pick up. Experimental.</p></div></div>
+        <div class="rows">
+          <label class="opt full"><span class="lbl"><b>Turn the DualSense off while the Steam Controller is in control</b><small>When you start using the Steam Controller, the DualSense is disconnected, so it can't rumble, light up or play sound. Press its PS button to switch back: the DualSense takes over and the Steam Controller steps aside until you press its Steam button.</small></span><input type="checkbox" id="dsOff"></label>
         </div>
-        <div class="btns">
-          <button data-hap="left">Buzz left</button>
-          <button data-hap="right">Buzz right</button>
-          <button data-hap="rumble">Rumble</button>
+        <div class="body"><p class="status" id="dsStatus">&nbsp;</p></div>
+      </section>
+      <section class="sec card" data-sec="ingame" id="sec-ingame">
+        <div class="ch"><div><h3>In games</h3><p>How the Steam Controller joins the game next to the DualSense.</p></div></div>
+        <div class="rows">
+          <label class="opt full"><span class="lbl"><b>Use the Steam Controller in games</b><small>Merges it into your player's controller, so it works alongside the DualSense.</small></span><input type="checkbox" id="ghIn"></label>
+          <label class="opt full"><span class="lbl"><b>Send game vibration to the Steam Controller</b><small>Goes to whichever controller is in control.</small></span><input type="checkbox" id="ghVib"></label>
+          <label class="opt full"><span class="lbl"><b>Move DualSense haptics and speaker</b><small>PS5 games: haptics become Steam Controller rumble, and the DualSense speaker is muted while the Steam Controller is in control. Hooks attach as the game starts, so restart the game after changing this.</small></span><input type="checkbox" id="ghAud"></label>
+          <label class="opt full"><span class="lbl"><b>When the DualSense is also on</b></span><select id="ghMode" style="flex:1 1 100%;margin-left:0"><option value="1">The one you touched last controls the game</option><option value="2">Only the Steam Controller</option><option value="0">Both at once</option></select></label>
         </div>
-        <p id="hapDiag" style="margin:12px 0 0;min-height:1.4em"></p>
-      </div>
-      <div class="card">
-        <h2>Menu on the console</h2>
-        <p>Switch profiles or remap a button without leaving the game. Messages appear as PS5 notifications.</p>
-        <ol>
+        <div class="body"><p class="status" id="ghStatus">&nbsp;</p></div>
+      </section>
+      <section class="sec card" data-sec="vibration" id="sec-vibration">
+        <div class="ch"><div><h3>Vibration test</h3><p id="hapNote">Checks the controller's haptics. If nothing happens, try each method and then send the log.</p></div></div>
+        <div class="body">
+          <div class="btns" style="margin-bottom:10px"><select id="hapVia" aria-label="Send method" style="flex:1 1 100%"><option value="0">Method: automatic</option><option value="1">Method 1: interrupt OUT</option><option value="2">Method 2: output report</option><option value="3">Method 3: feature report</option><option value="4">Method 4: every Puck output</option></select></div>
+          <div class="btns"><button data-hap="left">Buzz left</button><button data-hap="right">Buzz right</button><button data-hap="rumble">Rumble</button></div>
+          <p class="status" id="hapDiag" style="margin-top:12px"></p>
+        </div>
+      </section>
+      <section class="sec card" data-sec="menu" id="sec-menu">
+        <div class="ch"><div><h3>Menu on the console</h3><p>Switch profiles or remap a button without leaving the game. Messages appear as PS5 notifications.</p></div></div>
+        <div class="body"><ol>
           <li>Bind <b>Puckbridge menu</b> to any button or activator (for example View → Long press). Press it to open or close.</li>
           <li><b>D-pad up/down</b> chooses, <b>left/right</b> changes profile, <b>A</b> selects, <b>B</b> closes.</li>
           <li>To remap: pick <b>Remap a button</b>, press the button to change, then press the button it should act as. It saves to the current game's profile.</li>
-        </ol>
-      </div>
-      <div class="card" style="grid-column:1/-1">
-        <h2>Game bridge check</h2>
-        <p>Game vibration and DualSense-free input need to hook into the game's controller code (the PoorDS4 method). This check runs automatically about 8 seconds after a game starts. It only reads; nothing in the game is changed.</p>
-        <div id="bridgeOut" class="rows" style="margin:0 0 12px"></div>
-        <div class="btns"><button id="bridgeRun">Check the running game now</button></div>
-      </div>
-      <div class="card" style="grid-column:1/-1">
-        <h2>Troubleshooting log</h2>
-        <p>Include this when reporting a problem.</p>
-        <div class="btns"><button id="logShow">Show log</button><button id="logCopy">Copy log</button><button id="logPrev">Copy previous run's log</button></div>
-        <pre class="log" id="log" hidden></pre>
-      </div>
+        </ol></div>
+      </section>
+      <section class="sec wide card" data-sec="bridge" id="sec-bridge">
+        <div class="ch"><div><h3>Game bridge check</h3><p>Game vibration and DualSense-free input need to hook into the game's controller code (the PoorDS4 method). This check runs automatically about 8 seconds after a game starts. It only reads; nothing in the game is changed.</p></div></div>
+        <div id="bridgeOut" class="rows kv"></div>
+        <div class="body"><div class="btns"><button id="bridgeRun">Check the running game now</button></div></div>
+      </section>
+      <section class="sec wide card" data-sec="log" id="sec-log">
+        <div class="ch"><div><h3>Troubleshooting log</h3><p>Include this when reporting a problem.</p></div></div>
+        <div class="body"><div class="btns"><button id="logShow">Show log</button><button id="logCopy">Copy log</button><button id="logPrev">Copy previous run's log</button></div>
+        <pre class="log" id="log" hidden></pre></div>
+      </section>
     </div>
   </section>
 </div>
 
-<div class="savebar" id="savebar"><div class="wrap"><span>Unsaved changes to <b id="saveName"></b></span><span class="btns"><button id="revert" class="ghost">Undo</button><button class="primary" id="save">Save changes</button></span></div></div>
+<div class="savebar" id="savebar"><div class="wrap"><span class="msg">Unsaved changes to <b id="saveName"></b></span><span class="btns"><button id="revert" class="ghost">Undo</button><button class="primary" id="save">Save changes</button></span></div></div>
 
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetT">
   <div class="box">
@@ -378,8 +514,8 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
     <p class="acthelp" id="actHelp"></p>
     <div class="pick" id="pick"></div>
     <div class="actopts" id="actOpts">
-      <label><input type="checkbox" id="optTurbo"> Turbo (repeats while held)</label>
-      <label><input type="checkbox" id="optToggle"> Toggle (press on, press off)</label>
+      <label><input type="checkbox" class="box" id="optTurbo"> Turbo (repeats while held)</label>
+      <label><input type="checkbox" class="box" id="optToggle"> Toggle (press on, press off)</label>
     </div>
     <div class="foot"><button id="clear" class="ghost">Clear this tab</button><span class="btns"><button id="cancel" class="ghost">Cancel</button><button class="primary" id="done">Done</button></span></div>
   </div>
@@ -407,17 +543,31 @@ const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"
 const GAXES=[["YAW","Turning"],["ROLL","Tilting"]];
 const RSTICKS=[["NORMAL","Normal"],["FLICK","Flick stick"]];
 const TFX_PRESETS=[[0,"Off"],[50,"Light"],[100,"Normal"],[150,"Strong"]];
-const GDEF={RSTICK:"NORMAL",FLICK_SPEED:360,GYRO:"OFF",GYRO_AXIS:"YAW",GYRO_SENS_X:20,GYRO_SENS_Y:16,GYRO_ANTI_DEADZONE:10,GYRO_STEADINESS:5,GYRO_CURVE:10};
+const GDEF={RSTICK:"NORMAL",GYRO:"OFF",GYRO_AXIS:"YAW"};
+/* sliders: stored value range/step; scale = stored units per displayed unit; pre = unit shown before the number */
+const sensHint=v=>`Full stick at ${Math.round(2000/v)} °/s`;
+const SL={
+ DEADZONE:{min:0,max:40,def:9,unit:"%"},
+ GYRO_SENS_X:{min:1,max:100,def:20,hint:sensHint},
+ GYRO_SENS_Y:{min:1,max:100,def:16,hint:sensHint},
+ GYRO_ANTI_DEADZONE:{min:0,max:40,def:10,unit:"%"},
+ GYRO_STEADINESS:{min:0,max:30,def:5,scale:10,unit:"°/s",hint:v=>v?"":"Off: no filtering"},
+ GYRO_CURVE:{min:10,max:30,def:10,scale:10,unit:"×",pre:1,hint:v=>v>10?"":"Linear: stick moves exactly with the gyro"},
+ FLICK_SPEED:{min:90,max:1440,step:10,def:360,unit:"°/s"},
+ TRIGGER_FX:{min:0,max:200,step:5,def:100,unit:"%",after:()=>renderTfxPresets()},
+ LONG_MS:{min:150,max:1500,step:50,def:400,unit:"ms"},
+ DOUBLE_MS:{min:100,max:800,step:25,def:250,unit:"ms"},
+ TURBO_MS:{min:20,max:300,step:10,def:60,unit:"ms"}};
 
-/* controller diagram: [key, shape, label] — shape: c(cx,cy,r) or r(x,y,w,h,rx) */
 /* controller diagram — positions match the traced drawing (746×541).
    [key, shape, label, "ov"?]  shape: c(cx,cy,r) | r(x,y,w,h,rx) | p(pathD,labelX,labelY).
    "ov" = drawn in the art: invisible hotspot that lights up on hover/press/remap. */
 const SHAPES=[["LT",["r",112,-50,106,32,16],"LT"],["RT",["r",536,-50,106,32,16],"RT"],["LB",["p","M219 31L214 25L193 22L172 23L149 27L132 33L124 38L113 50L110 60L114 60L129 51L149 44L179 38L219 35Z",163,40],"","ov"],["RB",["p","M534 31L534 35L574 38L604 44L624 51L639 60L643 60L640 50L629 38L605 27L581 23L561 22L545 23L538 26Z",589,40],"","ov"],["DUP",["r",140,86,34,36,6],"","ov"],["DDOWN",["r",140,152,34,37,6],"","ov"],["DLEFT",["r",106,120,36,34,6],"","ov"],["DRIGHT",["r",172,120,37,34,6],"","ov"],["L3",["c",273,189,53],"","ov"],["R3",["c",479,189,53],"","ov"],["Y",["c",596,96,21],"","ov"],["X",["c",555,137,21],"","ov"],["B",["c",637,137,21],"","ov"],["A",["c",596,178,21],"","ov"],["VIEW",["p","M228 82L228 92L233 96L266 96L270 94L272 91L272 82L270 79L266 77L234 77L231 78Z",250,94],"","ov"],["MENU",["p","M481 82L481 91L484 95L487 96L520 96L525 92L525 81L519 77L487 77L484 78Z",503,94],"","ov"],["STEAM",["c",376,137,20],"","ov"],["QAM",["p","M349 319L349 330L351 333L355 335L399 335L403 332L405 327L404 319L400 315L354 315Z",377,325],"","ov"],["LPAD_CLICK",["p","M187 245L179 253L176 260L159 356L159 367L165 380L174 386L274 404L284 404L293 401L299 396L304 387L321 288L321 279L318 270L310 262L293 257L206 242L195 242Z",240,322],"","ov"],["RPAD_CLICK",["p","M569 247L557 242L547 242L450 259L437 267L432 278L435 307L449 386L454 396L460 401L470 404L479 404L571 388L583 384L590 377L594 366L594 357L577 260Z",512,322],"","ov"],["L4",["r",96,556,84,34,12],"L4"],["L5",["r",190,556,84,34,12],"L5"],["R4",["r",478,556,84,34,12],"R4"],["R5",["r",572,556,84,34,12],"R5"]];
 
-let cur={}, saved="", editing="default", profiles=[], status={}, games=[], sheetKey=null, sel=new Set();
+let cur={}, saved="", editing="default", profiles=[], status={}, games=[], sheetKey=null;
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function parse(t){const p={};t.split("\n").forEach(l=>{const i=l.indexOf("=");if(i>0)p[l.slice(0,i).trim()]=l.slice(i+1).trim()});return p}
 function fmt(p){return Object.entries(p).map(([k,v])=>k+"="+v).join("\n")+"\n"}
 function combo(v){return !v||v==="NONE"?[]:v.split("+")}
@@ -426,20 +576,63 @@ function norm(v){return combo(v).sort().join("+")}
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2400)}
 async function api(path,opt){const r=await fetch(path,opt);const t=await r.text();if(!r.ok)throw new Error(t);return t}
 function isDirty(){return saved!==""&&fmt(cur)!==saved}
-function dirty(){$("#savebar").classList.toggle("show",isDirty());const p=profiles.find(p=>p.id===editing);$("#saveName").textContent=p?p.name:editing}
+function dirty(){const d=isDirty();$("#savebar").classList.toggle("show",d);$("#saveName").textContent=pname(editing);
+  const s=$("#pstate");s.textContent=d?"Unsaved changes":"Saved";s.classList.toggle("dirty",d)}
 
-/* ── tabs ── */
-$$("nav.tabs button").forEach(b=>b.onclick=()=>{
-  $$("nav.tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
-  ["remap","games","help"].forEach(t=>$("#tab-"+t).hidden=t!==b.dataset.tab);
-  if(b.dataset.tab==="games")refreshGames();
-});
+/* ── storage (optional: the page works without it) ── */
+const store=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}, recall=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const sstore=(k,v)=>{try{sessionStorage.setItem(k,v)}catch(e){}}, srecall=k=>{try{return sessionStorage.getItem(k)}catch(e){return null}};
+
+/* ── location: #tab[/profile=ID][/section], mirrored to localStorage; scroll per tab in sessionStorage ── */
+const TABS=["remap","games","help"];
+let tab="remap", sec={}, scrolls={};
+try{scrolls=JSON.parse(srecall("pb.scroll")||"{}")}catch(e){scrolls={}}
+function parseHash(h){const o={tab:null,prof:null,sec:null};(h||"").replace(/^#/,"").split("/").filter(Boolean).forEach((p,i)=>{
+  if(i===0)o.tab=p;else if(p.startsWith("profile="))o.prof=decodeURIComponent(p.slice(8));else o.sec=p});return o}
+function hashOf(){let h="#"+tab;if(tab==="remap")h+="/profile="+encodeURIComponent(editing);if(sec[tab])h+="/"+sec[tab];return h}
+function syncHash(push){const h=hashOf();store("pb.loc",h);if(location.hash===h)return;
+  try{history[push?"pushState":"replaceState"](null,"",h)}catch(e){location.hash=h}}
+const hh=()=>$("header").offsetHeight;
+function measure(){document.documentElement.style.setProperty("--hh",hh()+"px")}
+addEventListener("resize",measure);
+function showTab(t,push){if(!TABS.includes(t))t="remap";
+  if(t!==tab)saveScroll();tab=t;
+  $$("nav.tabs button").forEach(x=>x.setAttribute("aria-selected",x.dataset.tab===t));
+  TABS.forEach(x=>$("#tab-"+x).hidden=x!==t);
+  if(t==="games")refreshGames();if(t==="help"){paintHooks();paintDs();paintBridge()}
+  syncHash(push);restoreScroll();paintSub()}
+$$("nav.tabs button").forEach(b=>b.onclick=()=>{if(b.dataset.tab!==tab)showTab(b.dataset.tab,true);else scrollTo({top:0,behavior:"auto"})});
+function switchTab(t){showTab(t,true)}
+function secTop(el){return el.getBoundingClientRect().top+scrollY-hh()-parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sub"))-10}
+let pinT=0; /* after a programmatic scroll, keep the chosen section until the user scrolls */
+function goSec(id,instant){const el=$(`#tab-${tab} [data-sec="${id}"]`);if(!el)return;sec[tab]=id;paintSub();syncHash(false);
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;pinT=Date.now()+(instant||reduce?1200:2500);scrollTo({top:Math.max(0,secTop(el)),behavior:instant||reduce?"auto":"smooth"})}
+function paintSub(){$$(`#tab-${tab} nav.sub button`).forEach(b=>{const on=b.dataset.sec===sec[tab];b.setAttribute("aria-current",on?"true":"false");
+  if(on){const c=b.parentElement;c.scrollLeft=b.offsetLeft-(c.clientWidth-b.offsetWidth)/2}})}
+$$("nav.sub button").forEach(b=>b.onclick=()=>goSec(b.dataset.sec));
+let rafS=0,tScroll=0;
+addEventListener("scroll",()=>{if(rafS)return;rafS=requestAnimationFrame(()=>{rafS=0;if(Date.now()>=pinT)trackSec();clearTimeout(tScroll);tScroll=setTimeout(saveScroll,150)})},{passive:true});
+function trackSec(){const secs=[...$$(`#tab-${tab} [data-sec]`)];if(!secs.length)return;
+  const th=hh()+parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sub"))+40;let a=secs[0];
+  if(scrollY+innerHeight>=document.documentElement.scrollHeight-2)a=secs[secs.length-1];
+  else secs.forEach(s=>{if(s.getBoundingClientRect().top<=th)a=s});
+  if(sec[tab]!==a.dataset.sec){sec[tab]=a.dataset.sec;paintSub();syncHash(false)}}
+function saveScroll(){scrolls[tab]=scrollY;sstore("pb.scroll",JSON.stringify(scrolls))}
+function restoreScroll(){const y=scrolls[tab];pinT=Date.now()+1200;
+  if(y!=null){scrollTo({top:y,behavior:"auto"});setTimeout(()=>{if(Date.now()<pinT&&Math.abs(scrollY-y)>2)scrollTo({top:y,behavior:"auto"})},400);if(!sec[tab]){pinT=0;trackSec()}}
+  else if(sec[tab])goSec(sec[tab],true);else{scrollTo({top:0,behavior:"auto"});pinT=0;trackSec()}}
+addEventListener("popstate",()=>applyLoc(parseHash(location.hash),false));
+async function applyLoc(l,push){
+  if(!l.tab)return;
+  if(l.tab==="remap"&&l.prof&&l.prof!==editing&&profiles.some(p=>p.id===l.prof)){sec.remap=l.sec||sec.remap;if(!await load(l.prof,false,push))return}
+  if(l.sec)sec[l.tab]=l.sec;
+  if(l.tab!==tab){if(l.sec)delete scrolls[l.tab];showTab(l.tab,push)}else if(l.sec)goSec(l.sec,true)}
 
 /* ── diagram ── */
 function buildPad(){
   const svg=$("#padsvg"),NS="http://www.w3.org/2000/svg";
   SHAPES.forEach(([k,s,label,ov])=>{
-    const g=document.createElementNS(NS,"g");g.setAttribute("class","ctl"+(ov?" ov":"")+(k[0]==="L"&&/[45]$/.test(k)||k[0]==="R"&&/[45]$/.test(k)?" back":""));
+    const g=document.createElementNS(NS,"g");g.setAttribute("class","ctl"+(ov?" ov":"")+(/^[LR][45]$/.test(k)?" back":""));
     g.dataset.k=k;g.setAttribute("tabindex","0");g.setAttribute("role","button");
     let el;
     if(s[0]==="c"){el=document.createElementNS(NS,"circle");el.setAttribute("cx",s[1]);el.setAttribute("cy",s[2]);el.setAttribute("r",s[3])}
@@ -464,7 +657,7 @@ function paintPad(){
     g.querySelector("title").textContent=`${LABEL[k]} → ${comboText(cur[k])}`;g.setAttribute("aria-label",`${LABEL[k]}, does ${comboText(cur[k])}`)});
 }
 
-/* ── list ── */
+/* ── bindings list ── */
 function renderList(){
   $("#list").innerHTML=GROUPS.map(([t,keys])=>`<div class="group"><h3>${t}</h3>${keys.map(k=>{const c=combo(cur[k]);
     if(k===RESERVED)return `<div class="row reserved" data-k="${k}"><span class="phys">${ic("s_"+k)}${esc(LABEL[k])}</span><span class="chips"><span class="tag">${esc(RESERVED_TXT)}</span></span></div>`;
@@ -472,41 +665,47 @@ function renderList(){
       c.length?c.map(o=>`<span class="chip c-${o}">${ic("o_"+o,"ic sm")}${esc(OUTNAME[o]||o)}</span>`).join(""):'<span class="chip none">Nothing</span>'}${extras(k).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</span></div>`}).join("")}</div>`).join("");
   $$(".row").forEach(r=>{if(r.dataset.k===RESERVED){r.onmouseenter=()=>showCaption(RESERVED);return}r.onclick=()=>openSheet(r.dataset.k);r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(r.dataset.k)}};r.onmouseenter=()=>showCaption(r.dataset.k)});
 }
+
+/* ── slider component: range + editable number box, both live ── */
+function buildSliders(){$$("[data-sl]").forEach(el=>{const k=el.dataset.sl,s=SL[k],sc=s.scale||1,st=s.step||1,lab=el.querySelector("b").textContent;
+  const unit=s.unit?`<span class="unit">${esc(s.unit)}</span>`:"";
+  el.className="opt sl "+el.className;el.innerHTML=`<div class="slh"><span class="lbl">${el.innerHTML}</span><span class="numbox">${s.pre?unit:""}<input type="number" id="n_${k}" class="num" min="${s.min/sc}" max="${s.max/sc}" step="${st/sc}" inputmode="decimal" aria-label="${esc(lab)}">${s.pre?"":unit}</span></div><input type="range" id="r_${k}" min="${s.min}" max="${s.max}" step="${st}" aria-label="${esc(lab)} slider"><small class="hint" id="h_${k}"></small>`;
+  const r=$("#r_"+k),n=$("#n_"+k);
+  r.oninput=()=>setSl(k,+r.value,"r");
+  n.oninput=()=>{const v=+n.value*sc;if(n.value!==""&&isFinite(v)&&v>=s.min&&v<=s.max)setSl(k,v,"n")};
+  n.onchange=()=>{let v=+n.value*sc;if(n.value===""||!isFinite(v))v=slVal(k);setSl(k,v)};
+  n.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();n.blur()}}})}
+function slVal(k){const s=SL[k],v=parseInt(cur[k]??s.def,10);return clamp(isFinite(v)?v:s.def,s.min,s.max)}
+function setSl(k,v,src){const s=SL[k],st=s.step||1;v=clamp(Math.round(v/st)*st,s.min,s.max);cur[k]=String(v);paintSl(k,src);if(s.after)s.after();dirty()}
+function paintSl(k,src){const s=SL[k],sc=s.scale||1,v=slVal(k),r=$("#r_"+k),n=$("#n_"+k),h=$("#h_"+k);
+  if(src!=="r")r.value=v;r.style.setProperty("--p",(v-s.min)/(s.max-s.min)*100+"%");
+  if(src!=="n")n.value=sc>1?(v/sc).toFixed(1):String(v);
+  h.textContent=s.hint?s.hint(v):"";h.hidden=!h.textContent}
+
+/* ── options ── */
+function segRender(seg,items,val,on){seg.innerHTML="";items.forEach(([v,l])=>{const b=document.createElement("button");b.type="button";b.textContent=l;b.setAttribute("aria-pressed",val===v);b.onclick=()=>on(v);seg.appendChild(b)})}
 function renderOpts(){
-  $$(".seg[data-k]").forEach(seg=>{const k=seg.dataset.k;seg.innerHTML="";
-    PADS.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",cur[k]===v);b.onclick=()=>{cur[k]=v;renderOpts();dirty()};seg.appendChild(b)})});
+  $$(".seg[data-k]").forEach(seg=>{const k=seg.dataset.k;segRender(seg,PADS,cur[k],v=>{cur[k]=v;renderOpts();dirty()})});
   $$("input[type=checkbox][data-k]").forEach(i=>{i.checked=cur[i.dataset.k]==="1";i.onchange=()=>{cur[i.dataset.k]=i.checked?"1":"0";dirty()}});
-  const dz=$("input[data-k=DEADZONE]");dz.value=cur.DEADZONE||9;$("#dzv").textContent=dz.value+"%";
-  dz.oninput=()=>{cur.DEADZONE=dz.value;$("#dzv").textContent=dz.value+"%";dirty()};
+  Object.keys(SL).forEach(k=>paintSl(k));
   const ss=$("#shiftSel");ss.innerHTML='<option value="NONE">None</option>'+BITS.filter(k=>k!==RESERVED).map(k=>`<option value="${k}">${esc(LABEL[k])}</option>`).join("");
   ss.value=cur.SHIFT||"NONE";ss.onchange=()=>{cur.SHIFT=ss.value;render()};
-  $$("input[data-r]").forEach(r=>{const k=r.dataset.r,def={LONG_MS:400,DOUBLE_MS:250,TURBO_MS:60}[k];
-    r.value=cur[k]||def;$(`b[data-v=${k}]`).textContent=r.value+" ms";
-    r.oninput=()=>{cur[k]=r.value;$(`b[data-v=${k}]`).textContent=r.value+" ms";dirty()}});
   renderGyro();
 }
 function renderGyro(){
   const gs=$("select[data-g=GYRO]");gs.value=cur.GYRO||GDEF.GYRO;gs.onchange=()=>{cur.GYRO=gs.value;renderGyro();dirty()};
-  const ax=$(".seg[data-g=GYRO_AXIS]");ax.innerHTML="";
-  GAXES.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",(cur.GYRO_AXIS||GDEF.GYRO_AXIS)===v);
-    b.onclick=()=>{cur.GYRO_AXIS=v;renderGyro();dirty()};ax.appendChild(b)});
-  const show=(k,v)=>{const b=$(`b[data-gv=${k}]`);
-    if(k==="GYRO_STEADINESS"){b.textContent=+v?(v/10).toFixed(1)+" °/s":"Off";return}
-    if(k==="GYRO_CURVE"){b.textContent=+v>10?"×"+(v/10).toFixed(1):"Linear";return}
-    if(k==="FLICK_SPEED"){b.textContent=v+" °/s";return}
-    b.textContent=k==="GYRO_ANTI_DEADZONE"?v+"%":v;
-    if(k!=="GYRO_ANTI_DEADZONE")b.title=`Full stick at ${Math.round(2000/v)}°/s`};
-  $$("input[data-gr]").forEach(r=>{const k=r.dataset.gr;r.value=cur[k]||GDEF[k];show(k,r.value);
-    r.oninput=()=>{cur[k]=r.value;show(k,r.value);dirty()}});
-  const rs=$(".seg[data-g=RSTICK]");rs.innerHTML="";
-  RSTICKS.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",(cur.RSTICK||GDEF.RSTICK)===v);
-    b.onclick=()=>{cur.RSTICK=v;renderGyro();dirty()};rs.appendChild(b)});
-  $("input[data-gr=FLICK_SPEED]").closest(".opt").style.opacity=(cur.RSTICK||"NORMAL")==="FLICK"?1:.5;
+  segRender($(".seg[data-g=GYRO_AXIS]"),GAXES,cur.GYRO_AXIS||GDEF.GYRO_AXIS,v=>{cur.GYRO_AXIS=v;renderGyro();dirty()});
+  segRender($(".seg[data-g=RSTICK]"),RSTICKS,cur.RSTICK||GDEF.RSTICK,v=>{cur.RSTICK=v;renderGyro();dirty()});
+  $("#flickOpts").classList.toggle("dim",(cur.RSTICK||GDEF.RSTICK)!=="FLICK");
+  $("#gyroOpts").classList.toggle("dim",(cur.GYRO||GDEF.GYRO)==="OFF");
   renderTfx();
-  const off=(cur.GYRO||"OFF")==="OFF";
-  $$(".gyro:not(.flick) .opt:not(.ghead):not(.motion)").forEach(o=>{if(!o.querySelector("select[data-g=GYRO]"))o.style.opacity=off?.5:1});
 }
 function render(){renderList();renderOpts();paintPad();dirty()}
+
+/* ── trigger effects strength ── */
+function renderTfx(){const v=slVal("TRIGGER_FX");
+  segRender($("#tfxPre"),TFX_PRESETS,v,n=>{cur.TRIGGER_FX=String(n);renderTfx();dirty()});paintSl("TRIGGER_FX")}
+function renderTfxPresets(){const v=+cur.TRIGGER_FX;$$("#tfxPre button").forEach((b,i)=>b.setAttribute("aria-pressed",TFX_PRESETS[i][0]===v))}
 
 /* ── binding editor (Steam Input-style activators) ── */
 const ACTS=[["","Press","Sends these while held. Pick several for a combo."],
@@ -518,7 +717,7 @@ let draft={},act="";
 function actsFor(k){return ACTS.filter(a=>a[0]!==".full"||k==="LT"||k==="RT").filter(a=>a[0]!==".shift"||cur.SHIFT&&cur.SHIFT!=="NONE"&&cur.SHIFT!==k)}
 function openSheet(k){
   if(k===RESERVED){showCaption(k);toast("… is reserved: hold it for 5 seconds to pause or resume Puckbridge");return}
-  sheetKey=k;$("#sheetT").textContent=LABEL[k];
+  sheetKey=k;$("#sheetT").innerHTML=ic("s_"+k)+esc(LABEL[k]);
   draft={};ACTS.forEach(([a])=>draft[a]=new Set(combo(cur[k+a])));
   draft.turbo=cur[k+".turbo"]==="1";draft.toggle=cur[k+".toggle"]==="1";
   $$(".ctl").forEach(g=>g.classList.toggle("sel",g.dataset.k===k));
@@ -536,7 +735,7 @@ $("#optTurbo").onchange=e=>{draft.turbo=e.target.checked;if(draft.turbo){draft.t
 $("#optToggle").onchange=e=>{draft.toggle=e.target.checked;if(draft.toggle){draft.turbo=false;$("#optTurbo").checked=false}};
 function renderPick(){
   const set=draft[act],p=$("#pick");p.innerHTML="";
-  OUTS.forEach(([v,l])=>{const b=document.createElement("button");b.className="g-"+v;b.textContent=l;b.setAttribute("aria-pressed",set.has(v));
+  OUTS.forEach(([v,l])=>{const b=document.createElement("button");b.className="g-"+v;b.innerHTML=ic("o_"+v,"ic sm")+esc(l);b.setAttribute("aria-pressed",set.has(v));
     b.onclick=()=>{set.has(v)?set.delete(v):set.add(v);b.setAttribute("aria-pressed",set.has(v));renderActTabs()};p.appendChild(b)});
 }
 function closeSheet(apply){
@@ -565,17 +764,17 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#sheet").classLi
 /* ── profiles ── */
 const pname=id=>{const p=profiles.find(p=>p.id===id);return p?p.name:id};
 const plabel=p=>p.id==="default"?"Default (every game without its own)":`${p.name}${p.id!==p.name?" · "+p.id:""}`;
-async function load(id,force){
-  if(!force&&isDirty()&&!confirm("Discard unsaved changes?")){$("#prof").value=editing;return}
+async function load(id,force,push=true){
+  if(!force&&isDirty()&&!confirm("Discard unsaved changes?")){$("#prof").value=editing;syncHash(false);return false}
   editing=id;cur=parse(await api("/api/profile?id="+encodeURIComponent(id)));saved=fmt(cur);
-  $("#prof").value=id;$("#del").disabled=id==="default";render();
+  $("#prof").value=id;$("#del").disabled=id==="default";render();syncHash(push);return true;
 }
 async function refreshList(){
   profiles=JSON.parse(await api("/api/profiles"));
   profiles.sort((a,b)=>a.id==="default"?-1:b.id==="default"?1:a.name.localeCompare(b.name));
-  $("#prof").innerHTML=profiles.map(p=>`<option value="${esc(p.id)}">Editing: ${esc(plabel(p))}</option>`).join("");
+  $("#prof").innerHTML=profiles.map(p=>`<option value="${esc(p.id)}">${esc(plabel(p))}</option>`).join("");
   $("#prof").value=editing;
-  $("#mode").innerHTML=`<option value="">Use: automatic per game</option>`+profiles.map(p=>`<option value="${esc(p.id)}">Use: always ${esc(p.name)}</option>`).join("");
+  $("#mode").innerHTML=`<option value="">Automatic per game</option>`+profiles.map(p=>`<option value="${esc(p.id)}">Always ${esc(p.name)}</option>`).join("");
   $("#mode").value=status.override||"";
 }
 async function createFor(tid,name){
@@ -585,11 +784,10 @@ async function createFor(tid,name){
   await api("/api/profile?id="+encodeURIComponent(tid),{method:"POST",body:fmt(p)});
   await refreshList();switchTab("remap");await load(tid,true);toast("Profile created from Default");
 }
-function switchTab(t){$(`nav.tabs button[data-tab="${t}"]`).click()}
 $("#prof").onchange=e=>load(e.target.value);
 $("#mode").onchange=async e=>{await api("/api/override?id="+encodeURIComponent(e.target.value),{method:"POST"});toast(e.target.value?"Locked to "+pname(e.target.value):"Switching automatically per game")};
 $("#save").onclick=async()=>{try{await api("/api/profile?id="+encodeURIComponent(editing),{method:"POST",body:fmt(cur)});saved=fmt(cur);dirty();await refreshList();toast("Saved")}catch(e){toast("Couldn't save: "+e.message)}};
-$("#revert").onclick=()=>{cur=parse(saved);render()};
+$("#revert").onclick=()=>{cur=parse(saved);render();toast("Changes undone")};
 /* ── export / import ── */
 $("#exp").onclick=()=>{
   const name=(cur.name||editing).replace(/[^\w .()-]+/g,"_").trim()||"profile";
@@ -612,7 +810,7 @@ $("#impFile").onchange=async e=>{
   cur=next;render();dirty();toast("Imported. Check it, then Save");
 };
 $("#del").onclick=async()=>{if(editing==="default"||!confirm(`Delete "${pname(editing)}"?`))return;await api("/api/delete?id="+encodeURIComponent(editing),{method:"POST"});await refreshList();await load("default",true);toast("Deleted")};
-window.addEventListener("beforeunload",e=>{if(isDirty()){e.preventDefault();e.returnValue=""}});
+window.addEventListener("beforeunload",e=>{saveScroll();if(isDirty()){e.preventDefault();e.returnValue=""}});
 
 /* ── games ── */
 function art(g,cls){return g&&g.icon?`<img src="/api/icon?id=${encodeURIComponent(g.id)}" alt="" loading="lazy">`:esc((g&&g.name||"?").trim().slice(0,1).toUpperCase())}
@@ -624,11 +822,11 @@ function renderGames(){
   const q=$("#gsearch").value.trim().toLowerCase();
   const list=games.filter(g=>!q||g.name.toLowerCase().includes(q)||g.id.toLowerCase().includes(q));
   $("#gcount").textContent=`${games.length} installed`;
-  if(!games.length){$("#games").innerHTML='<div class="empty">No installed games found.</div>';return}
+  if(!games.length){$("#games").innerHTML='<div class="empty"><b>No installed games found</b>Games appear here once the PS5 has finished listing them.</div>';return}
   $("#games").innerHTML=list.map(g=>{const has=profiles.some(p=>p.id===g.id),playing=status.title===g.id;
     return `<div class="card game${playing?" playing":""}"><div class="art">${art(g)}</div><div class="name">${esc(g.name)}</div>
     <div class="meta"><span>${esc(g.id)}</span>${playing?'<span class="badge ok">Playing</span>':has?'<span class="badge lock">Profile</span>':""}</div>
-    <button data-id="${esc(g.id)}" class="${has?"":"primary"}">${has?"Edit profile":"Create profile"}</button></div>`}).join("")||'<div class="empty">No matches.</div>';
+    <button data-id="${esc(g.id)}" class="${has?"":"primary"}">${has?"Edit profile":"Create profile"}</button></div>`}).join("")||`<div class="empty"><b>No matches</b>No installed game is called "${esc(q)}".</div>`;
   $$("#games button[data-id]").forEach(b=>b.onclick=()=>{const g=games.find(g=>g.id===b.dataset.id);createFor(g.id,g.name)});
 }
 $("#gsearch").oninput=renderGames;
@@ -661,37 +859,30 @@ function paintLive(live){
   $$(".row").forEach(r=>r.classList.toggle("live",!!(live&(1<<BITS.indexOf(r.dataset.k)))));
   if(fresh){const i=BITS.findIndex((_,i)=>fresh&(1<<i));if(i>=0)showCaption(BITS[i])}
 }
+let lastConn="";
 async function poll(){
   try{
     status=JSON.parse(await api("/api/status"));
-    $("#dot").classList.toggle("on",!!status.connected&&!status.paused);
-    $("#dot").classList.toggle("paused",!!status.paused);
-    $("#conn").textContent=status.paused?"Paused · hold … 5 s to resume":status.connected?"Controller connected":"Controller not connected";
+    const ck=[status.connected,status.paused].join();
+    if(ck!==lastConn){lastConn=ck;
+      $("#dot").classList.toggle("on",!!status.connected&&!status.paused);
+      $("#dot").classList.toggle("paused",!!status.paused);
+      $("#conn").textContent=status.paused?"Paused · hold … 5 s to resume":status.connected?"Controller connected":"Controller not connected";
+      $("#pauseBtn").textContent=status.paused?"Resume now":"Pause now";$("#pauseBtn").className=status.paused?"primary":""}
     paintBattery();
-    $("#pauseBtn").textContent=status.paused?"Resume now":"Pause now";$("#pauseBtn").className=status.paused?"primary":"";
     renderNow();paintLive(status.inputs>>>0);paintHap();paintGyro();
     if($("#mode").value!==(status.override||""))$("#mode").value=status.override||"";
-  }catch(e){$("#dot").classList.remove("on");$("#conn").textContent="PS5 unreachable"}
+  }catch(e){lastConn="";$("#dot").classList.remove("on");$("#conn").textContent="PS5 unreachable"}
   setTimeout(poll,150);
 }
 
 $("#pauseBtn").onclick=async()=>{try{await api("/api/pause?on="+(status.paused?0:1),{method:"POST"});toast(status.paused?"Resumed":"Paused")}catch(e){toast(e.message)}};
 
-/* ── trigger effects strength ── */
-function renderTfx(){
-  const v=Math.max(0,Math.min(200,parseInt(cur.TRIGGER_FX??"100",10)||0));
-  const pre=$("#tfxPre");pre.innerHTML="";
-  TFX_PRESETS.forEach(([n,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",v===n);
-    b.onclick=()=>{cur.TRIGGER_FX=String(n);renderTfx();dirty()};pre.appendChild(b)});
-  const r=$("#tfxRange"),num=$("#tfxNum");r.value=v;if(document.activeElement!==num)num.value=v;
-  r.oninput=()=>{cur.TRIGGER_FX=r.value;num.value=r.value;renderTfxPresets();dirty()};
-  num.onchange=()=>{let n=Math.round(+num.value);if(!isFinite(n))n=100;n=Math.max(0,Math.min(200,n));cur.TRIGGER_FX=String(n);renderTfx();dirty()};
-}
-function renderTfxPresets(){const v=+cur.TRIGGER_FX;$$("#tfxPre button").forEach((b,i)=>b.setAttribute("aria-pressed",TFX_PRESETS[i][0]===v))}
-
 /* ── battery ── */
+let lastBatt="";
 function paintBattery(){
-  const el=$("#batt"),lvl=status.battery;
+  const el=$("#batt"),lvl=status.battery,key=[status.connected,lvl,status.charging].join();
+  if(key===lastBatt)return;lastBatt=key;
   if(!status.connected||lvl==null||lvl<0){el.hidden=true;return}
   el.hidden=false;el.classList.toggle("low",lvl<=15&&!status.charging);
   el.innerHTML=`<i><b style="width:${Math.max(1,Math.round(lvl*14/100))}px"></b></i>${lvl}%${status.charging===1?" ⚡":""}`;
@@ -707,21 +898,22 @@ function paintGyro(){
   else if(!g.imu)txt="Starting gyro…";
   else{const gr=["no grip","left grip","right grip","both grips"][g.grips&3];
     txt=(g.active?"Aiming":"Not aiming")+" · "+(g.button===1?"gyro button held":g.button===2?"held off with the gyro button":g.button===3?"turned off with the gyro button":gr)+(g.cal?"":" · put it down for a second to calibrate")}
-  t.textContent=txt;
+  if(t.textContent!==txt)t.textContent=txt;
   const on=!!(g&&g.imu&&g.active);m.classList.toggle("on",on);
   const ax=g?((cur.GYRO_AXIS||"YAW")==="ROLL"?-g.roll:-g.yaw)*(cur.GYRO_INVERT_X==="1"?-1:1):0;
   const ay=g?g.pitch*(cur.GYRO_INVERT_Y==="1"?-1:1):0;
   const c=v=>Math.max(-20,Math.min(20,v/3));
   m.querySelector("i").style.transform=g&&g.imu?`translate(${c(ax)}px,${c(-ay)}px)`:"none";
-  m.title="Turn right: the dot should move right. Tilt up: it should move up. If not, use Invert.";
+  if(!m.title)m.title="Turn right: the dot should move right. Tilt up: it should move up. If not, use Invert.";
 }
 
 /* ── help ── */
 $$("[data-hap]").forEach(b=>b.onclick=async()=>{try{await api("/api/haptic?kind="+b.dataset.hap+"&via="+$("#hapVia").value,{method:"POST"});toast("Sent to controller")}catch(e){toast(e.message||"Request failed")}});
-function paintHap(){const h=status.hap;if(!h){$("#hapDiag").textContent="";return}
+function paintHap(){const h=status.hap,el=$("#hapDiag");if(!h){el.textContent="";return}
   const via=["–","interrupt OUT","output report","feature report","every Puck output"][h.via]||"–";
-  $("#hapDiag").textContent=!status.haptics?"Controller not connected to the payload.":
-   `Queued ${h.q}, sent ${h.sent}, failed ${h.fail}. Last: ${h.q?(h.err?"error "+h.err:"OK")+" via "+via:"none yet"}. OUT endpoint: ${h.out>=0?"0x"+h.out.toString(16).padStart(2,"0"):"not available"}.`}
+  const txt=!status.haptics?"Controller not connected to the payload.":
+   `Queued ${h.q}, sent ${h.sent}, failed ${h.fail}. Last: ${h.q?(h.err?"error "+h.err:"OK")+" via "+via:"none yet"}. OUT endpoint: ${h.out>=0?"0x"+h.out.toString(16).padStart(2,"0"):"not available"}.`;
+  if(el.textContent!==txt)el.textContent=txt}
 $("#logShow").onclick=async()=>{const p=$("#log");if(!p.hidden){p.hidden=true;$("#logShow").textContent="Show log";return}p.textContent=await api("/api/log");p.hidden=false;$("#logShow").textContent="Hide log";p.scrollTop=p.scrollHeight};
 $("#logPrev").onclick=async()=>{const t=await api("/api/log?prev=1");try{await navigator.clipboard.writeText(t);toast("Previous run's log copied")}catch(e){const p=$("#log");p.textContent=t;p.hidden=false;$("#logShow").textContent="Hide log";toast("Select the log text to copy it")}};
 $("#logCopy").onclick=async()=>{const t=await api("/api/log");try{await navigator.clipboard.writeText(t);toast("Log copied")}catch(e){const p=$("#log");p.textContent=t;p.hidden=false;$("#logShow").textContent="Hide log";toast("Select the log text to copy it")}};
@@ -763,10 +955,12 @@ async function paintDs(){
 $("#dsOff").onchange=async e=>{try{await api("/api/dualsense?on="+(e.target.checked?1:0),{method:"POST"});paintDs()}catch(err){toast(err.message)}};
 
 /* ── game bridge check ── */
+let lastBridge="";
 async function paintBridge(){
-  let b;try{b=JSON.parse(await api("/api/bridge"))}catch(e){return}
+  let b,raw;try{raw=await api("/api/bridge");b=JSON.parse(raw)}catch(e){return}
+  if(raw===lastBridge)return;lastBridge=raw;
   const g=games.find(g=>g.id===b.title),name=g?g.name:(b.title||"");
-  const row=(k,v,ok)=>`<div class="opt"><span>${k}</span><span class="badge ${ok===true?"ok":ok===false?"warn":""}">${esc(v)}</span></div>`;
+  const row=(k,v,ok)=>`<div class="opt full"><span class="lbl">${k}</span><span class="badge ${ok===true?"ok":ok===false?"warn":""}">${esc(v)}</span></div>`;
   if(!b.title||b.state===0){$("#bridgeOut").innerHTML=row("Status","Start a game to run the check",null);return}
   if(b.state<3){$("#bridgeOut").innerHTML=row(name,b.state===1?"Waiting for the game to finish loading…":"Checking…",null);return}
   const pass=b.result===2&&b.scan===0;
@@ -786,9 +980,14 @@ setInterval(()=>{if(!$("#tab-help").hidden)paintBridge()},1500);
 
 /* ── start ── */
 (async()=>{
-  buildPad();
+  if("scrollRestoration" in history)history.scrollRestoration="manual";
+  measure();buildPad();buildSliders();
+  const adv=$("#gyroAdv");adv.open=recall("pb.gyroAdv")==="1";adv.ontoggle=()=>store("pb.gyroAdv",adv.open?"1":"0");
+  const loc=parseHash(location.hash||recall("pb.loc")||"");
+  if(loc.tab&&TABS.includes(loc.tab)){tab=loc.tab;if(loc.sec)sec[loc.tab]=loc.sec}
   try{status=JSON.parse(await api("/api/status"))}catch(e){}
-  try{await refreshList();editing=status.active||"default";await load(editing,true)}catch(e){$("#conn").textContent="PS5 unreachable"}
+  try{await refreshList();editing=loc.prof&&profiles.some(p=>p.id===loc.prof)?loc.prof:(status.active||"default");await load(editing,true,false)}catch(e){$("#conn").textContent="PS5 unreachable"}
+  showTab(tab,false);
   refreshGames().then(()=>{lastNow="";renderNow()});
   poll();
 })();
