@@ -16,6 +16,8 @@ Plug the **Puck** (28de:1304) into a PS5 USB port. A USB-C cable (28de:1302) als
 - *Use* menu: leave on automatic, or lock one profile for everything.
 
 Changes apply the moment you save.
+
+**Export / Import** (next to the profile menu on the Remap tab): *Export* downloads the profile you're editing as a `.ini` file, including unsaved changes, so you can back it up or share it. *Import* loads such a file into the profile you're editing: its bindings and settings replace the current ones (the profile keeps its name), activators the file doesn't set are cleared, and nothing is saved until you press *Save*.
 Profiles are stored as plain text in `/data/ghostpad/profiles/<TITLE_ID>.ini`, so you can back them up over FTP.
 
 ## Bindings (Steam Input-style)
@@ -70,6 +72,9 @@ Game vibration, and input that doesn't need a virtual controller, both depend on
 
 ## Notifications
 When a game starts you'll see which profile attached, or that it's using Default.
+
+## Battery
+The portal's header shows the Steam Controller's battery level (with ⚡ while charging), as soon as the controller first reports it. A PS5 notification warns once when it drops to 15% and again at 5%; charging re-arms the warnings.
 
 ## Vibration
 **In games (experimental):** set in *Settings & help → In games*. About 10 seconds after a game starts, Puckbridge redirects the game's own `libScePad` imports to small stubs, using PoorDS4's method:
