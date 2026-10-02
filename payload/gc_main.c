@@ -808,6 +808,11 @@ static void *usb_hid_thread(void *arg) {
 main_loop: ;
     int hs_state = (pid==PID_XBOX || pid==PID_STEAM_WIRED || pid==PID_SC2_PUCK || pid==PID_SC2_WIRED) ? HS_STREAMING : HS_WAIT_81_01;
     int sc2_link = 1;
+    /* DualSense took back over after a hand-off: the Steam Controller is
+     * parked (no virtual pad, hooks see it as off) until its Steam button is
+     * pressed and released, or it's turned off and on. Stage: 0 wait for the
+     * Steam button to be up, 1 wait for a press, 2 wait for its release. */
+    int sc2_parked = 0, sc2_park_stage = 0;
     uint32_t steam_pkts = 0;
     uint8_t nintendo_seq = 1;
 
@@ -855,36 +860,66 @@ main_loop: ;
         } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
-            /* Only real input reports reach the game. Battery/status and
-             * lizard-mode reports leave `pad` zeroed, which reads as a stick
-             * pushed fully up-left. On disconnect nothing is fed and the
-             * bridge is disabled (conn = 0), so native input resumes. */
-            if (!was && sc2_link) ds_handoff_sc2_session(1);       /* woke up */
-            /* Only hand off once the Steam Controller really works on its own:
-             * its virtual pad is bound to the user and input is going in. In a
-             * game with merged input it plays through the DualSense, so never. */
-            if (injected && sc2_link && sc2_pad_in_use(&pad) &&
-                g_slots[slot].vdi_ready && g_slots[slot].bind_ok &&
-                g_slots[slot].last_vdi_ret == 0 && !game_hooks_input_active())
-                ds_handoff_sc2_used();
-            if (injected) game_hooks_feed(&pad, sc2_link);
-            else if (!sc2_link) game_hooks_feed(NULL, 0);
-            sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
-            if (was && !sc2_link) {
-                ds_handoff_sc2_session(0);
-                inject_pad(slot, &pad);                     /* release everything first */
-                sc2_vda_detach(slot, "controller asleep / out of range");
-                notify("Puckbridge: Steam Controller disconnected");
-                injected = 0;
+            if (!was && sc2_link) { sc2_parked = 0; ds_handoff_sc2_session(1); }   /* woke up */
+
+            /* DualSense came back after a hand-off: it takes over. Ask the Steam
+             * Controller to power off, and park it whether or not it does. */
+            if (ds_handoff_take_release() && !sc2_parked) {
+                sc2_parked = 1; sc2_park_stage = 0;
+                sc2_power_off(fd, sc2_iface);
+                notify("Puckbridge: DualSense in control. Press the Steam button to switch back.");
             }
-            /* In a hooked game the Steam Controller is merged straight into the
-             * player's controller reads, so the virtual pad is removed there
-             * (it would only take rumble away from the DualSense). It comes
-             * back for the home screen and games that couldn't be hooked. */
-            if (game_hooks_input_active()) {
-                if (g_slots[slot].vdi_ready) sc2_vda_detach(slot, "game uses merged input");
+            if (sc2_parked) {
+                game_hooks_feed(NULL, 0);
+                sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
+                if (g_slots[slot].vdi_ready) {
+                    ScePadData rel; memset(&rel, 0, sizeof(rel));
+                    rel.leftStick.x = rel.leftStick.y = rel.rightStick.x = rel.rightStick.y = 128;
+                    rel.connected = 1; rel.quat.w = 1.0f;
+                    inject_pad(slot, &rel);                     /* release everything first */
+                    sc2_vda_detach(slot, "DualSense in control");
+                }
+                if (was && !sc2_link) ds_handoff_sc2_session(0);   /* it did power off */
+                int steam = sc2_link && (sc2_live_inputs & (1u << IN_STEAM)) != 0;
+                if      (sc2_park_stage == 0 && !steam) sc2_park_stage = 1;
+                else if (sc2_park_stage == 1 &&  steam) sc2_park_stage = 2;
+                else if (sc2_park_stage == 2 && !steam) {
+                    sc2_parked = 0;
+                    ds_handoff_sc2_session(1);                  /* hand-off armed again */
+                    gp_log("slot[%d] Steam button: Steam Controller takes control back\n", slot);
+                }
                 injected = 0;
-            } else if (sc2_link && !g_slots[slot].vdi_ready) sc2_vda_attach(slot);
+            } else {
+                /* Only real input reports reach the game. Battery/status and
+                 * lizard-mode reports leave `pad` zeroed, which reads as a stick
+                 * pushed fully up-left. On disconnect nothing is fed and the
+                 * bridge is disabled (conn = 0), so native input resumes. */
+                /* Only hand off once the Steam Controller really works on its own:
+                 * its virtual pad is bound to the user and input is going in. In a
+                 * game with merged input it plays through the DualSense, so never. */
+                if (injected && sc2_link && sc2_pad_in_use(&pad) &&
+                    g_slots[slot].vdi_ready && g_slots[slot].bind_ok &&
+                    g_slots[slot].last_vdi_ret == 0 && !game_hooks_input_active())
+                    ds_handoff_sc2_used();
+                if (injected) game_hooks_feed(&pad, sc2_link);
+                else if (!sc2_link) game_hooks_feed(NULL, 0);
+                sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
+                if (was && !sc2_link) {
+                    ds_handoff_sc2_session(0);
+                    inject_pad(slot, &pad);                     /* release everything first */
+                    sc2_vda_detach(slot, "controller asleep / out of range");
+                    notify("Puckbridge: Steam Controller disconnected");
+                    injected = 0;
+                }
+                /* In a hooked game the Steam Controller is merged straight into the
+                 * player's controller reads, so the virtual pad is removed there
+                 * (it would only take rumble away from the DualSense). It comes
+                 * back for the home screen and games that couldn't be hooked. */
+                if (game_hooks_input_active()) {
+                    if (g_slots[slot].vdi_ready) sc2_vda_detach(slot, "game uses merged input");
+                    injected = 0;
+                } else if (sc2_link && !g_slots[slot].vdi_ready) sc2_vda_attach(slot);
+            }
         } else if (pid == PID_STEAM_WIRED) {
             injected = steam_handle_packet(buf, len, &pad);
             if ((++steam_pkts % 1250u) == 0) steam_keepalive(fd);   /* ~every 5s */

@@ -259,7 +259,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       </div>
       <div class="card" style="grid-column:1/-1">
         <h2>DualSense hand-off</h2>
-        <label class="opt" style="padding:8px 0;border:0"><span><b>Turn the DualSense off while the Steam Controller is in control</b><br><small style="color:var(--muted)">When you start using the Steam Controller, the DualSense is disconnected, so it can't rumble, light up or play sound. Press its PS button to bring it back; it then stays on until the Steam Controller is turned off and on again. Experimental.</small></span><input type="checkbox" id="dsOff"></label>
+        <label class="opt" style="padding:8px 0;border:0"><span><b>Turn the DualSense off while the Steam Controller is in control</b><br><small style="color:var(--muted)">When you start using the Steam Controller, the DualSense is disconnected, so it can't rumble, light up or play sound. Press its PS button to switch back: the DualSense takes over and the Steam Controller steps aside until you press its Steam button. Experimental.</small></span><input type="checkbox" id="dsOff"></label>
         <p id="dsStatus" style="min-height:1.4em;margin:4px 0 0">&nbsp;</p>
       </div>
       <div class="card">
@@ -601,7 +601,7 @@ async function paintDs(){
     several:"Skipped this time: more than one controller is on, so Puckbridge won't guess which one to turn off.",
     working:"Turning the DualSense off…",
     off:"DualSense is off. Press its PS button to bring it back.",
-    back:"DualSense is back. It stays on until the Steam Controller is turned off and on again.",
+    back:"DualSense in control. Press the Steam Controller's Steam button to switch back.",
     failed:`Couldn't turn the DualSense off (error ${d.ret}). Please send the log.`}[d.state]||"");
 }
 $("#dsOff").onchange=async e=>{try{await api("/api/dualsense?on="+(e.target.checked?1:0),{method:"POST"});paintDs()}catch(err){toast(err.message)}};
