@@ -39,6 +39,12 @@ static int      g_n_pads = 0;
 static uint64_t g_virt[MAX_VIRT];
 static int      g_n_virt = 0;
 static uint64_t g_off_id = 0;             /* pad we disconnected this session */
+static int64_t  g_off_ms = 0;             /* when */
+
+static int64_t now_ms(void) {
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
 static int      g_logged_lines = 0;
 
 static void notify(const char *m) {
@@ -100,9 +106,14 @@ static void pad_seen(uint64_t id, const char *how) {
     pthread_mutex_lock(&g_lock);
     if (is_virtual(id)) { pthread_mutex_unlock(&g_lock); return; }
     if (pad_index(id) < 0 && g_n_pads < MAX_PADS) { g_pads[g_n_pads++] = id; added = 1; }
-    if (g_off_id == id && g_state == ST_OFF) { g_state = ST_BACK; back = 1; }
+    /* A reconnecting DualSense gets a new id, so any physical pad appearing
+     * after we turned one off means it's back. */
+    long after_ms = -1;
+    if (g_state == ST_OFF) { g_state = ST_BACK; back = 1; after_ms = (long)(now_ms() - g_off_ms); }
     pthread_mutex_unlock(&g_lock);
     if (added) LOG("dualsense hand-off: physical pad 0x%llx (%s)\n", (unsigned long long)id, how);
+    if (back) LOG("dualsense hand-off: DualSense back as 0x%llx, %ld ms after it was turned off\n",
+                  (unsigned long long)id, after_ms);
     if (back) notify("Puckbridge: DualSense is back. It stays on until the Steam Controller is turned off and on again.");
 }
 
@@ -189,7 +200,7 @@ static void *worker(void *arg) {
 
     pthread_mutex_lock(&g_lock);
     g_last_ret = r;
-    if (r == 0) { g_state = ST_OFF; g_off_id = id; pad_remove(id); }
+    if (r == 0) { g_state = ST_OFF; g_off_id = id; g_off_ms = now_ms(); pad_remove(id); }
     else          g_state = ST_FAILED;
     g_busy = 0;
     pthread_mutex_unlock(&g_lock);
