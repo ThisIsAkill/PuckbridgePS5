@@ -16,6 +16,8 @@ Plug the **Puck** (28de:1304) into a PS5 USB port. A USB-C cable (28de:1302) als
 - *Use* menu: leave on automatic, or lock one profile for everything.
 
 Changes apply the moment you save.
+
+**Export / Import** (next to the profile menu on the Remap tab): *Export* downloads the profile you're editing as a `.ini` file, including unsaved changes, so you can back it up or share it. *Import* loads such a file into the profile you're editing: its bindings and settings replace the current ones (the profile keeps its name), activators the file doesn't set are cleared, and nothing is saved until you press *Save*.
 Profiles are stored as plain text in `/data/ghostpad/profiles/<TITLE_ID>.ini`, so you can back them up over FTP.
 
 ## Bindings (Steam Input-style)
@@ -40,7 +42,12 @@ Turn and tilt the controller to aim. The gyro is added to the right stick, so it
 
 The card's live readout shows whether the gyro is running and aiming, and which grips you're touching. Its dot should move right when you turn right and up when you tilt up; if it doesn't, use Invert.
 
-Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro aiming or motion controls.
+**Gyro buttons:** three actions you can bind to any input or activator, like any PS button:
+- **Gyro on (hold):** the gyro aims while it's held, whatever *Gyro aims* is set to (also with *Off*, for gyro only on demand).
+- **Gyro off (hold):** the gyro stops aiming while it's held, so you can re-centre your hands without moving the camera (ratcheting). A back grip works well.
+- **Gyro on/off:** press to turn gyro aiming off, press again to turn it back on. It's back on after the controller reconnects.
+
+Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro aiming, a gyro button or motion controls.
 
 ## Motion controls for games
 Games that use the DualSense's own motion sensor (tilting, turning, shaking) get the Steam Controller's instead: acceleration, turn rate and orientation, in the DualSense's axes. It's on by default and works with gyro aiming on or off; turn it off per profile with *Motion controls for games* in the Gyro card. Orientation starts level, and tilt is corrected from gravity whenever the controller isn't being shaken.
@@ -70,6 +77,9 @@ Game vibration, and input that doesn't need a virtual controller, both depend on
 
 ## Notifications
 When a game starts you'll see which profile attached, or that it's using Default.
+
+## Battery
+The portal's header shows the Steam Controller's battery level (with ⚡ while charging), as soon as the controller first reports it. A PS5 notification warns once when it drops to 15% and again at 5%; charging re-arms the warnings.
 
 ## Vibration
 **In games (experimental):** set in *Settings & help → In games*. About 10 seconds after a game starts, Puckbridge redirects the game's own `libScePad` imports to small stubs, using PoorDS4's method:

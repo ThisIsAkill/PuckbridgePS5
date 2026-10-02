@@ -132,8 +132,32 @@ static void calibrate(const int16_t g[3], const int16_t a[3], int64_t now, int a
     g_win_n = 0;
 }
 
+static volatile uint32_t g_act = 0;               /* gyro buttons held this report */
+static volatile int g_toggled_off = 0;
+
+void sc2_gyro_buttons(uint32_t act) {
+    static uint32_t prev = 0;
+    act &= PB_ACT_GYRO;
+    if ((act & PB_ACT_GYRO_TOGGLE) && !(prev & PB_ACT_GYRO_TOGGLE)) {
+        g_toggled_off = !g_toggled_off;
+        LOG("gyro: %s with the gyro button\n", g_toggled_off ? "off" : "back on");
+    }
+    prev = act;
+    g_act = act;
+}
+
+/* does the profile bind a "gyro on while held" button anywhere? */
+static int has_gyro_on_button(const sc2_profile_t *P) {
+    for (int i = 0; i < SC2_IN_COUNT; i++)
+        if ((P->map[i] | P->lng[i] | P->dbl[i] | P->shf[i]) & PB_ACT_GYRO_ON) return 1;
+    return 0;
+}
+
 static int gyro_engaged(const sc2_profile_t *P, const uint8_t *b) {
     int lgrip = (b[5] & 0x20) != 0, rgrip = (b[5] & 0x10) != 0;
+    if (g_act & PB_ACT_GYRO_OFF) return 0;            /* ratchet: re-centre */
+    if (g_act & PB_ACT_GYRO_ON)  return 1;
+    if (g_toggled_off)           return 0;
     switch (P->gyro_mode) {
         case GYRO_ALWAYS:    return 1;
         case GYRO_GRIP_ANY:  return lgrip || rgrip;
@@ -147,7 +171,8 @@ static int gyro_engaged(const sc2_profile_t *P, const uint8_t *b) {
 void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
                     int64_t now, int *dx, int *dy) {
     *dx = *dy = 0;
-    g_wanted = P->gyro_mode != GYRO_OFF || P->motion;
+    int buttons = has_gyro_on_button(P);
+    g_wanted = P->gyro_mode != GYRO_OFF || buttons || P->motion;
     if (len < IMU_MIN_LEN) { g_active = 0; return; }
     g_grips = ((b[5] & 0x20) ? 1 : 0) | ((b[5] & 0x10) ? 2 : 0);
 
@@ -156,7 +181,7 @@ void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
     if (!a[0] && !a[1] && !a[2]) { g_active = 0; return; }   /* IMU off: gravity never reads 0 */
     g_imu_seen = now;
 
-    int on = P->gyro_mode != GYRO_OFF && gyro_engaged(P, b);
+    int on = (P->gyro_mode != GYRO_OFF || buttons) && gyro_engaged(P, b);
     if (!on || P->gyro_mode == GYRO_ALWAYS) calibrate(g, a, now, on);
     else g_win_n = 0;                         /* aiming: never learn drift */
     float pitch = (g[0] - g_bias[0]) / GYRO_PER_DPS;
@@ -278,6 +303,7 @@ void sc2_gyro_motion(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
 
 void sc2_gyro_reset(void) {
     g_q[0] = 1; g_q[1] = g_q[2] = g_q[3] = 0; g_motion_ms = 0;
+    g_act = 0; g_toggled_off = 0;
     g_imu_seen = 0; g_active = 0; g_grips = 0; sc2_gyro_moving = 0;
     g_win_n = 0;
     memset(g_hist, 0, sizeof(g_hist));
@@ -292,6 +318,7 @@ void sc2_gyro_status(sc2_gyro_status_t *s) {
     s->active = s->imu && g_active;
     s->calibrated = g_cal;
     s->grips = g_grips;
+    s->button = (g_act & PB_ACT_GYRO_ON) ? 1 : (g_act & PB_ACT_GYRO_OFF) ? 2 : g_toggled_off ? 3 : 0;
     s->yaw = g_yaw; s->pitch = g_pitch; s->roll = g_roll;
 }
 

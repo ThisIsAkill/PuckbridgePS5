@@ -40,6 +40,7 @@ static const struct { const char *n; uint32_t m; } k_out[] = {
     {"OPTIONS",SCE_PAD_BUTTON_OPTIONS},{"CREATE",SCE_PAD_BUTTON_SHARE},
     {"PS",SCE_PAD_BUTTON_PS},{"TOUCHPAD",SCE_PAD_BUTTON_TOUCH_PAD},
     {"PB_MENU",PB_ACT_MENU},
+    {"PB_GYRO_ON",PB_ACT_GYRO_ON},{"PB_GYRO_OFF",PB_ACT_GYRO_OFF},{"PB_GYRO_TOGGLE",PB_ACT_GYRO_TOGGLE},
 };
 #define N_OUT ((int)(sizeof(k_out)/sizeof(k_out[0])))
 
@@ -218,7 +219,8 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
 
 void sc2_combo_name(uint32_t mask, char *out, size_t n) {
     static const char *nice[] = { "Cross","Circle","Square","Triangle","L1","R1","L2","R2",
-        "L3","R3","Up","Down","Left","Right","Options","Create","PS","Touchpad","Puckbridge menu" };
+        "L3","R3","Up","Down","Left","Right","Options","Create","PS","Touchpad","Puckbridge menu",
+        "Gyro on (hold)","Gyro off (hold)","Gyro on/off" };
     size_t o = 0; out[0] = 0;
     for (int j = 0; j < N_OUT; j++)
         if (mask & k_out[j].m) {

@@ -58,6 +58,11 @@ int  sc2_handle_packet(const uint8_t *buf, uint32_t len,
 /* Paused (hold … for 5 s, or the portal): the Steam Controller is still read,
  * so the same hold resumes, but nothing is sent to the PS5 and the game hooks
  * see it as switched off, so the DualSense is fully back in charge. */
+/* Battery (report 0x43): level in %, -1 until the controller reports it. */
+enum { SC2_BATT_DISCHARGING = 1, SC2_BATT_CHARGING, SC2_BATT_FULL };
+extern volatile int sc2_battery_level, sc2_battery_state;
+void sc2_battery_reset(void);
+
 extern volatile int sc2_paused;
 void sc2_set_paused(int on);
 
