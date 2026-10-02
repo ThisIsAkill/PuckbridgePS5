@@ -5,6 +5,7 @@
 #include "game_list.h"
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
+#include "ds_handoff.h"
 #include "bridge_probe.h"
 #include "game_hooks.h"
 #include "webui_html.h"
@@ -231,6 +232,12 @@ static void handle(int fd) {
             game_hooks_set(i ? i[6] == '1' : -1, v ? v[10] == '1' : -1, m ? m[5] - '0' : -1);
         }
         char out[512]; int n = game_hooks_json(out, sizeof(out));
+        reply(fd, 200, "application/json", out, n > 0 ? (size_t)n : 0);
+        return;
+    }
+    if (!strncmp(path, "/api/dualsense", 14)) {
+        if (is_post) { const char *o = strstr(path, "on="); if (o) ds_handoff_set_enabled(o[3] == '1'); }
+        char out[160]; int n = ds_handoff_json(out, sizeof(out));
         reply(fd, 200, "application/json", out, n > 0 ? (size_t)n : 0);
         return;
     }
