@@ -411,5 +411,6 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     o->buttons   = btn;
     o->connected = 1;
     o->quat.w    = 1.0f;
+    sc2_gyro_motion(&P, b, len, now, o);         /* 7. motion for games */
     return 1;
 }

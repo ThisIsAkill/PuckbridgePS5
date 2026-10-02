@@ -269,6 +269,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       <label class="opt"><span>Game stick curve <b data-gv="GYRO_CURVE"></b><br><small style="color:var(--muted)">If the aim doesn't come back to where it started after looking away and back, raise this until it does</small></span><input type="range" min="10" max="30" data-gr="GYRO_CURVE"></label>
       <label class="opt"><span>Invert gyro left/right</span><input type="checkbox" data-k="GYRO_INVERT_X"></label>
       <label class="opt"><span>Invert gyro up/down</span><input type="checkbox" data-k="GYRO_INVERT_Y"></label>
+      <label class="opt motion"><span>Motion controls for games<br><small style="color:var(--muted)">Games that use the DualSense's motion (tilting, turning, shaking) get the Steam Controller's. Works with gyro aiming on or off</small></span><input type="checkbox" data-k="MOTION"></label>
     </div>
   </section>
 
@@ -471,7 +472,7 @@ function renderGyro(){
   $$("input[data-gr]").forEach(r=>{const k=r.dataset.gr;r.value=cur[k]||GDEF[k];show(k,r.value);
     r.oninput=()=>{cur[k]=r.value;show(k,r.value);dirty()}});
   const off=(cur.GYRO||"OFF")==="OFF";
-  $$(".gyro .opt:not(.ghead)").forEach(o=>{if(!o.querySelector("select[data-g=GYRO]"))o.style.opacity=off?.5:1});
+  $$(".gyro .opt:not(.ghead):not(.motion)").forEach(o=>{if(!o.querySelector("select[data-g=GYRO]"))o.style.opacity=off?.5:1});
 }
 function render(){renderList();renderOpts();paintPad();dirty()}
 

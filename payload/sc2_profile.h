@@ -50,6 +50,7 @@ typedef struct {
     uint8_t  gyro_adz;              /* anti-deadzone, % of stick travel, 0-40 */
     uint8_t  gyro_steady;           /* fine-aim filter, tenths of °/s, 0-30 (0 = raw) */
     uint8_t  gyro_curve;            /* game stick curve to undo, tenths, 10-30 (10 = linear) */
+    uint8_t  motion;                /* pass motion (tilt, turn, shake) to games */
 } sc2_profile_t;
 
 extern const char *const sc2_in_keys[SC2_IN_COUNT];

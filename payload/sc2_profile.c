@@ -77,6 +77,7 @@ void sc2_profile_default(sc2_profile_t *p) {
     p->gyro_adz = 10;
     p->gyro_steady = 5;
     p->gyro_curve = 10;
+    p->motion = 1;
 }
 
 static char *trim(char *s) {
@@ -170,6 +171,7 @@ void sc2_profile_parse(const char *text, sc2_profile_t *p) {
         else if (!strcasecmp(k, "GYRO_CURVE")) {
             int d = atoi(v); if (d < 10) d = 10; if (d > 30) d = 30; p->gyro_curve = (uint8_t)d;
         }
+        else if (!strcasecmp(k, "MOTION")) p->motion = (uint8_t)(atoi(v) != 0);
         else if (!strcasecmp(k, "GYRO_STEADINESS")) {
             int d = atoi(v); if (d < 0) d = 0; if (d > 30) d = 30; p->gyro_steady = (uint8_t)d;
         }
@@ -208,6 +210,7 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
     PUT("GYRO=%s\nGYRO_AXIS=%s\nGYRO_SENS_X=%d\nGYRO_SENS_Y=%d\nGYRO_INVERT_X=%d\nGYRO_INVERT_Y=%d\nGYRO_ANTI_DEADZONE=%d\nGYRO_STEADINESS=%d\nGYRO_CURVE=%d\n",
         k_gyro[p->gyro_mode < GYRO_MODES ? p->gyro_mode : 0], k_gyro_axis[p->gyro_axis & 1],
         p->gyro_sens_x, p->gyro_sens_y, p->gyro_invert_x, p->gyro_invert_y, p->gyro_adz, p->gyro_steady, p->gyro_curve);
+    PUT("MOTION=%d\n", p->motion);
 #undef PUT
     if (o >= n) o = n ? n - 1 : 0;
     return (int)o;
