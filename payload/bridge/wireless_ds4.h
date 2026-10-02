@@ -217,6 +217,7 @@ typedef struct {
     uint64_t vcalls, in_calls, in_merged;
     uint32_t native_act;
     uint32_t aseq; uint8_t hap_l, hap_r, spk; uint64_t a_calls, a_muted; uint32_t n_hap, n_spk;
+    uint32_t tseq; uint8_t tcmd[2][56];   /* last trigger effect command, L2 and R2 */
 } PbStatus;
 /* Serialises kernel memory access (SDK kernel_copyout/in are not thread-safe).
  * Hold it around any kernel_* / shellui_pad_* call made outside the bridge. */

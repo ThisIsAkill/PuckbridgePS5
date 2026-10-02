@@ -6703,6 +6703,9 @@ game_cache_find_table(
  *   scePadSetVibration
  *       record the motor levels for the payload, then call Sony's original,
  *       so the DualSense still vibrates.
+ *   scePadSetTriggerEffect
+ *       record each trigger's effect command for the payload (felt as clicks
+ *       and buzzes on the Steam Controller), then call Sony's original.
  *
  * Every stub calls the original first and only touches the result when the
  * shared page is valid and fresh. If the payload stops publishing, frames
@@ -6711,7 +6714,7 @@ game_cache_find_table(
 
 #define PB_MAGIC       0x42505550u   /* "PUPB" */
 #define PB_MAX_HOOKS   16u
-#define PB_LAYOUT_VERSION 4u         /* bump whenever PbArgs OR the stub code changes */
+#define PB_LAYOUT_VERSION 5u         /* bump whenever PbArgs OR the stub code changes */
 #define PB_MAX_PORTS   24u
 #define PB_ZERO_BYTES  32768u
 _Static_assert(GB_KINDS <= 16u, "PbArgs.orig too small");
@@ -6737,6 +6740,10 @@ typedef struct {
     volatile uint8_t  vlarge, vsmall;
     uint16_t r0;
     volatile uint64_t vcalls;
+    /* trigger effects (game → payload): last command per trigger */
+    volatile uint32_t tseq;
+    uint32_t r4;
+    uint8_t  tcmd[2][56];             /* ScePadTriggerEffectCommand: u32 mode, pad, 48 bytes data */
     /* input (payload → game) */
     volatile uint32_t in_enabled;
     volatile uint32_t in_idx;
@@ -6881,6 +6888,26 @@ int32_t pb_set_vibration_stub(int32_t handle, const uint8_t *param, PbArgs *a)
     }
     __atomic_add_fetch(&a->vcalls, 1u, __ATOMIC_RELAXED);
     return ((fn)(uintptr_t)a->orig[7])(handle, pass);
+}
+/* scePadSetTriggerEffect(handle, param): args in rdx.
+ * param: u8 triggerMask (bit 0 L2, bit 1 R2), 7 pad, then two 56-byte
+ * commands (L2, R2). Only the triggers in the mask are updated. */
+__attribute__((noinline, used, section(".text.pbhooks")))
+int32_t pb_set_trigger_stub(int32_t handle, const uint8_t *param, PbArgs *a)
+{
+    typedef int32_t (*fn)(int32_t, const uint8_t *);
+    if (param && a->magic == PB_MAGIC) {
+        uint8_t mask = param[0];
+        for (int t = 0; t < 2; t++) {
+            if (!(mask & (1u << t))) continue;
+            const uint8_t *src = param + 8 + 56 * t;
+            for (int i = 0; i < 56; i += 8) {             /* 8 bytes at a time: stays inline */
+                uint64_t v; __builtin_memcpy(&v, src + i, 8); __builtin_memcpy(&a->tcmd[t][i], &v, 8);
+            }
+        }
+        if (mask & 3u) __atomic_add_fetch(&a->tseq, 1u, __ATOMIC_RELEASE);
+    }
+    return ((fn)(uintptr_t)a->orig[8])(handle, param);
 }
 /* ── audio ports ───────────────────────────────────────────────────── */
 
@@ -7063,6 +7090,7 @@ static const struct { unsigned kind; uintptr_t stub; int rcx; } k_pb_hooks[] = {
     { 2, (uintptr_t)pb_read_stub,           1 },
     { 3, (uintptr_t)pb_read_ext_stub,       1 },
     { 7, (uintptr_t)pb_set_vibration_stub,  0 },
+    { 8, (uintptr_t)pb_set_trigger_stub,    0 },
     { 9,  (uintptr_t)pb_audio_open_stub,     2 },   /* r11 */
     { 10, (uintptr_t)pb_audio_output_stub,   0 },
     { 11, (uintptr_t)pb_audio_outputs_stub,  0 },
@@ -7175,7 +7203,7 @@ pb_hooks_install_locked(int want_input, int want_vibe, int want_audio, pid_t *ou
     uint32_t ns = 0, n_in = 0, n_vib = 0, n_aud = 0;
     for (uint32_t i = 0; i < hook_count && ns < PB_MAX_HOOKS; i++) {
         unsigned k = hooks[i].kind;
-        int is_in = (k <= 3), is_vib = (k == 7), is_aud = (k >= 9 && k <= 13);
+        int is_in = (k <= 3), is_vib = (k == 7 || k == 8), is_aud = (k >= 9 && k <= 13);
         if (originals[k] <= 0) continue;
         if ((is_in && want_input) || (is_vib && want_vibe) || (is_aud && want_audio)) {
             sel[ns++] = hooks[i]; n_in += is_in; n_vib += is_vib; n_aud += is_aud;
@@ -7237,8 +7265,8 @@ pb_hooks_install_locked(int want_input, int want_vibe, int want_audio, pid_t *ou
         patched++;
     }
     *out_args = args_addr;
-    if (pb_found) snprintf(why, why_n, "replaced older build: hooked %u input, %u vibration, %u audio slot(s)", n_in, n_vib, n_aud);
-    else snprintf(why, why_n, "hooked %u input, %u vibration, %u audio import slot(s)", n_in, n_vib, n_aud);
+    if (pb_found) snprintf(why, why_n, "replaced older build: hooked %u input, %u vibration/trigger, %u audio slot(s)", n_in, n_vib, n_aud);
+    else snprintf(why, why_n, "hooked %u input, %u vibration/trigger, %u audio import slot(s)", n_in, n_vib, n_aud);
     return 1;
 
 rollback:
@@ -7302,6 +7330,7 @@ pb_hooks_read_locked(pid_t pid, intptr_t args_addr, PbStatus *st)
     if (game_bridge_process_read(pid, args_addr, &a, offsetof(PbArgs, zero)) != 0 || a.magic != PB_MAGIC) return -1;
     st->vseq = a.vseq; st->vlarge = a.vlarge; st->vsmall = a.vsmall; st->vhandle = a.vhandle;
     st->vcalls = a.vcalls; st->in_calls = a.in_calls; st->in_merged = a.in_merged;
+    st->tseq = a.tseq; memcpy(st->tcmd, a.tcmd, sizeof(st->tcmd));
     st->native_act = a.native_act;
     st->aseq = a.aseq; st->hap_l = a.hap_l; st->hap_r = a.hap_r; st->spk = a.spk_level;
     st->a_calls = a.a_calls; st->a_muted = a.a_muted;

@@ -80,6 +80,7 @@ void sc2_profile_default(sc2_profile_t *p) {
     p->gyro_curve = 10;
     p->rstick = RSTICK_NORMAL;
     p->flick_speed = 360;
+    p->trig_fx = 100;
     p->motion = 1;
 }
 
@@ -175,6 +176,9 @@ void sc2_profile_parse(const char *text, sc2_profile_t *p) {
             int d = atoi(v); if (d < 10) d = 10; if (d > 30) d = 30; p->gyro_curve = (uint8_t)d;
         }
         else if (!strcasecmp(k, "RSTICK")) p->rstick = !strcasecmp(v, "FLICK") ? RSTICK_FLICK : RSTICK_NORMAL;
+        else if (!strcasecmp(k, "TRIGGER_FX")) {
+            int d = atoi(v); if (d < 0) d = 0; if (d > 200) d = 200; p->trig_fx = (uint8_t)d;
+        }
         else if (!strcasecmp(k, "FLICK_SPEED")) {
             int d = atoi(v); if (d < 90) d = 90; if (d > 1440) d = 1440; p->flick_speed = (uint16_t)d;
         }
@@ -218,6 +222,7 @@ int sc2_profile_format(const sc2_profile_t *p, char *out, size_t n) {
         k_gyro[p->gyro_mode < GYRO_MODES ? p->gyro_mode : 0], k_gyro_axis[p->gyro_axis & 1],
         p->gyro_sens_x, p->gyro_sens_y, p->gyro_invert_x, p->gyro_invert_y, p->gyro_adz, p->gyro_steady, p->gyro_curve);
     PUT("RSTICK=%s\nFLICK_SPEED=%d\n", p->rstick == RSTICK_FLICK ? "FLICK" : "NORMAL", p->flick_speed);
+    PUT("TRIGGER_FX=%d\n", p->trig_fx);
     PUT("MOTION=%d\n", p->motion);
 #undef PUT
     if (o >= n) o = n ? n - 1 : 0;

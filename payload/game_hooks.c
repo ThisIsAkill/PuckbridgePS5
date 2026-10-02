@@ -5,6 +5,7 @@
 #include "sc2_profile.h"
 #include "sc2_haptics.h"
 #include "sc2_gyro.h"
+#include "sc2_trigfx.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -103,7 +104,7 @@ static void *hooks_thread(void *arg) {
     char cur[SC2_ID_MAX + 1] = "";
     int64_t title_since = 0, next_try = 0, next_stat = 0;
     int tries = 0, rumbling = 0;
-    uint32_t last_vseq = 0, last_pad_seq = 0, last_native_act = 0, last_aseq = 0;
+    uint32_t last_vseq = 0, last_pad_seq = 0, last_native_act = 0, last_aseq = 0, last_tseq = 0;
     int64_t last_hap_ms = 0;
     int last_in = -1, last_vib = -1;
 
@@ -120,7 +121,8 @@ static void *hooks_thread(void *arg) {
             snprintf(cur, sizeof(cur), "%s", t);
             last_in = want_in; last_vib = want_vib;
             title_since = strcmp(t, g.title) ? now : title_since;
-            tries = 0; next_try = 0; last_vseq = 0;
+            tries = 0; next_try = 0; last_vseq = 0; last_tseq = 0;
+            sc2_trigfx_clear(); sc2_trigfx_enable(0);
             pthread_mutex_lock(&g_lock);
             snprintf(g.title, sizeof(g.title), "%s", t);
             memset(&g.st, 0, sizeof(g.st));
@@ -160,6 +162,7 @@ static void *hooks_thread(void *arg) {
         if (kill(g.pid, 0) != 0) {                  /* game process gone */
             if (rumbling) { sc2_haptic_rumble_set(0, 0); rumbling = 0; }
             g_active = 0; g.pid = -1; title_since = now; tries = 0;
+            last_tseq = 0; sc2_trigfx_clear(); sc2_trigfx_enable(0);
             set_state(1, "game restarted, hooking again");
             continue;
         }
@@ -216,6 +219,16 @@ static void *hooks_thread(void *arg) {
             }
         } else if (rumbling && last_hap_ms && (!sc2_active || (g_audio_on && now - last_hap_ms > 120))) {
             sc2_haptic_rumble_set(0, 0); rumbling = 0; last_hap_ms = 0;
+        }
+
+        /* adaptive trigger effects: kept per trigger, felt while the Steam
+         * Controller is the active pad */
+        sc2_trigfx_enable(want_vib && sc2_active);
+        if (have_st && st.tseq != last_tseq) {
+            if (!last_tseq) LOG("game hooks: first trigger effect from %s\n", cur);
+            last_tseq = st.tseq;
+            sc2_trigfx_set(0, st.tcmd[0]);
+            sc2_trigfx_set(1, st.tcmd[1]);
         }
 
         /* classic vibration (PS4 games): forward to SC2 while it is the active pad */
