@@ -125,6 +125,10 @@ input[type=checkbox]:checked::after{transform:translateX(20px);background:#fff}
 input[type=range]{width:150px;accent-color:var(--accent)}
 .gyro{margin-top:20px}
 .gyro .ghead{grid-column:1/-1;border-top:0}
+.numrow{display:flex;align-items:center;gap:8px;flex:0 1 60%;min-width:0}
+.numrow input[type=range]{flex:1;min-width:0}
+.num{width:4.2em;padding:4px 6px;font:inherit;text-align:right;background:var(--panel);color:inherit;border:1px solid var(--line);border-radius:8px}
+.unit{color:var(--muted);font-size:.9rem}
 .gyro .ghead small{color:var(--muted)}
 .gyro .opt select{min-width:0;max-width:62%;flex:0 1 auto}
 .gmeter{position:relative;width:54px;height:54px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);flex:none}
@@ -286,6 +290,11 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
       <div class="opt"><span>Right stick</span><div class="seg" data-g="RSTICK"></div></div>
       <label class="opt"><span>Game's turn speed <b data-gv="FLICK_SPEED"></b><br><small style="color:var(--muted)">How fast the game turns at full stick. Flick right: if you turn less than 90°, lower it; if more, raise it</small></span><input type="range" min="90" max="1440" step="10" data-gr="FLICK_SPEED"></label>
     </div>
+    <div class="card opts gyro tfx">
+      <div class="opt ghead"><span><b>Trigger effects</b><br><small>When a game sets an adaptive trigger effect, you feel it as clicks and buzzes on that side as you pull the trigger. How strong is up to you.</small></span></div>
+      <div class="opt"><span>Strength</span><div class="seg" id="tfxPre"></div></div>
+      <label class="opt"><span>Fine-tune</span><span class="numrow"><input type="range" min="0" max="200" step="5" id="tfxRange"><input type="number" min="0" max="200" step="5" id="tfxNum" class="num"><span class="unit">%</span></span></label>
+    </div>
   </section>
 
   <!-- GAMES -->
@@ -397,6 +406,7 @@ const RESERVED="QAM", RESERVED_TXT="Reserved: hold 5 s to pause or resume Puckbr
 const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
 const GAXES=[["YAW","Turning"],["ROLL","Tilting"]];
 const RSTICKS=[["NORMAL","Normal"],["FLICK","Flick stick"]];
+const TFX_PRESETS=[[0,"Off"],[50,"Light"],[100,"Normal"],[150,"Strong"]];
 const GDEF={RSTICK:"NORMAL",FLICK_SPEED:360,GYRO:"OFF",GYRO_AXIS:"YAW",GYRO_SENS_X:20,GYRO_SENS_Y:16,GYRO_ANTI_DEADZONE:10,GYRO_STEADINESS:5,GYRO_CURVE:10};
 
 /* controller diagram: [key, shape, label] — shape: c(cx,cy,r) or r(x,y,w,h,rx) */
@@ -492,6 +502,7 @@ function renderGyro(){
   RSTICKS.forEach(([v,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",(cur.RSTICK||GDEF.RSTICK)===v);
     b.onclick=()=>{cur.RSTICK=v;renderGyro();dirty()};rs.appendChild(b)});
   $("input[data-gr=FLICK_SPEED]").closest(".opt").style.opacity=(cur.RSTICK||"NORMAL")==="FLICK"?1:.5;
+  renderTfx();
   const off=(cur.GYRO||"OFF")==="OFF";
   $$(".gyro:not(.flick) .opt:not(.ghead):not(.motion)").forEach(o=>{if(!o.querySelector("select[data-g=GYRO]"))o.style.opacity=off?.5:1});
 }
@@ -665,6 +676,18 @@ async function poll(){
 }
 
 $("#pauseBtn").onclick=async()=>{try{await api("/api/pause?on="+(status.paused?0:1),{method:"POST"});toast(status.paused?"Resumed":"Paused")}catch(e){toast(e.message)}};
+
+/* ── trigger effects strength ── */
+function renderTfx(){
+  const v=Math.max(0,Math.min(200,parseInt(cur.TRIGGER_FX??"100",10)||0));
+  const pre=$("#tfxPre");pre.innerHTML="";
+  TFX_PRESETS.forEach(([n,l])=>{const b=document.createElement("button");b.textContent=l;b.setAttribute("aria-pressed",v===n);
+    b.onclick=()=>{cur.TRIGGER_FX=String(n);renderTfx();dirty()};pre.appendChild(b)});
+  const r=$("#tfxRange"),num=$("#tfxNum");r.value=v;if(document.activeElement!==num)num.value=v;
+  r.oninput=()=>{cur.TRIGGER_FX=r.value;num.value=r.value;renderTfxPresets();dirty()};
+  num.onchange=()=>{let n=Math.round(+num.value);if(!isFinite(n))n=100;n=Math.max(0,Math.min(200,n));cur.TRIGGER_FX=String(n);renderTfx();dirty()};
+}
+function renderTfxPresets(){const v=+cur.TRIGGER_FX;$$("#tfxPre button").forEach((b,i)=>b.setAttribute("aria-pressed",TFX_PRESETS[i][0]===v))}
 
 /* ── battery ── */
 function paintBattery(){

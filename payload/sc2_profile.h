@@ -58,6 +58,7 @@ typedef struct {
     uint8_t  gyro_curve;            /* game stick curve to undo, tenths, 10-30 (10 = linear) */
     uint8_t  rstick;                /* RSTICK_* */
     uint16_t flick_speed;           /* game's turn speed at full stick, °/s, 90-1440 */
+    uint8_t  trig_fx;               /* trigger effect haptics strength, %, 0-200 (0 = off) */
     uint8_t  motion;                /* pass motion (tilt, turn, shake) to games */
 } sc2_profile_t;
 

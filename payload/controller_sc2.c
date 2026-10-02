@@ -330,7 +330,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
     int64_t now = (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 
-    sc2_trigfx_apply(lt, rt, now);               /* game's adaptive trigger effects, as haptics */
+    sc2_trigfx_apply(lt, rt, now, P.trig_fx);               /* game's adaptive trigger effects, as haptics */
 
     /* 1a. … is reserved for Puckbridge: hold it 5 s anywhere to pause /
      *     resume. It never reaches bindings, the menu or the PS5. */

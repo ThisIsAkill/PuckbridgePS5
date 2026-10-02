@@ -15,6 +15,7 @@ static fx_t    g_fx[2];
 static volatile int g_on = 0;
 static int     g_zone[2] = { -1, -1 };
 static int64_t g_buzz_until[2];
+static int     g_pct = 100;             /* strength, % */
 
 void sc2_trigfx_set(int t, const uint8_t cmd[56]) {
     if (t < 0 || t > 1) return;
@@ -34,7 +35,10 @@ void sc2_trigfx_enable(int on) { g_on = on ? 1 : 0; }
 static void click(int side, int strength) {          /* strength 1-8 */
     if (strength < 1) strength = 1;
     if (strength > 8) strength = 8;
-    sc2_haptic_pulse(side, (uint16_t)(150 + strength * 60), 0, 1);
+    int on = (150 + strength * 60) * g_pct / 100;
+    if (on < 40) return;
+    if (on > 2000) on = 2000;
+    sc2_haptic_pulse(side, (uint16_t)on, 0, 1);
 }
 
 /* buzz at freq Hz with amplitude 1-8, for the next 100 ms */
@@ -45,7 +49,10 @@ static void buzz(int side, int freq, int amp, int64_t now) {
     if (amp < 1) amp = 1;
     if (amp > 8) amp = 8;
     int period = 1000000 / freq;
-    int on = period * amp / 16; if (on < 80) on = 80;
+    int on = period * amp / 16 * g_pct / 100;
+    if (on < 40) return;
+    if (on < 80) on = 80;
+    if (on > period - 20) on = period - 20;
     int count = freq / 10; if (count < 1) count = 1;
     sc2_haptic_pulse(side, (uint16_t)on, (uint16_t)(period - on), (uint16_t)count);
     g_buzz_until[side] = now + 100;
@@ -84,8 +91,9 @@ static void apply_one(int t, const fx_t *f, uint8_t pull, int64_t now) {
     }
 }
 
-void sc2_trigfx_apply(uint8_t l2, uint8_t r2, int64_t now) {
-    if (!g_on) { g_zone[0] = g_zone[1] = -1; return; }
+void sc2_trigfx_apply(uint8_t l2, uint8_t r2, int64_t now, int pct) {
+    if (!g_on || pct <= 0) { g_zone[0] = g_zone[1] = -1; return; }
+    g_pct = pct > 200 ? 200 : pct;
     fx_t f[2];
     pthread_mutex_lock(&g_lock); memcpy(f, g_fx, sizeof(f)); pthread_mutex_unlock(&g_lock);
     if (!f[0].mode && !f[1].mode) { g_zone[0] = g_zone[1] = -1; return; }

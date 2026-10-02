@@ -19,5 +19,6 @@ void sc2_trigfx_set(int trigger, const uint8_t cmd[56]);   /* 0 = L2, 1 = R2 */
 void sc2_trigfx_clear(void);
 /* Only while the Steam Controller is the active pad. */
 void sc2_trigfx_enable(int on);
-/* Every input report: physical trigger pulls (0-255). */
-void sc2_trigfx_apply(uint8_t l2, uint8_t r2, int64_t now_ms);
+/* Every input report: physical trigger pulls (0-255), and the profile's
+ * strength in % (0 = off, 100 = normal, up to 200). */
+void sc2_trigfx_apply(uint8_t l2, uint8_t r2, int64_t now_ms, int strength_pct);
