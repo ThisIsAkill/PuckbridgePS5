@@ -8,6 +8,7 @@
 #include "ds_handoff.h"
 #include "shellui_pad.h"
 #include "sc2_profile.h"
+#include "bridge/wireless_ds4.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,8 +25,6 @@
 #define SETTINGS "/data/ghostpad/dualsense.ini"
 #define MAX_PADS 4
 #define MAX_VIRT 8
-
-pthread_mutex_t g_shellui_lock = PTHREAD_MUTEX_INITIALIZER;
 
 enum { ST_IDLE, ST_NO_ID, ST_SEVERAL, ST_WORKING, ST_OFF, ST_BACK, ST_FAILED };
 static const char *k_state[] = { "idle", "no_id", "several", "working", "off", "back", "failed" };
@@ -183,9 +182,9 @@ void ds_handoff_sc2_session(int on) {
 static void *worker(void *arg) {
     uint64_t id = (uint64_t)(uintptr_t)arg;
     LOG("dualsense hand-off: disconnecting 0x%llx\n", (unsigned long long)id);
-    pthread_mutex_lock(&g_shellui_lock);
+    pb_kernel_lock();                         /* kernel memory is shared with the game hooks */
     int r = shellui_pad_disconnect_device(id);
-    pthread_mutex_unlock(&g_shellui_lock);
+    pb_kernel_unlock();
     LOG("dualsense hand-off: disconnect 0x%llx -> %d\n", (unsigned long long)id, r);
 
     pthread_mutex_lock(&g_lock);

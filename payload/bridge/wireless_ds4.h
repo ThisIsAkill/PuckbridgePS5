@@ -218,6 +218,10 @@ typedef struct {
     uint32_t native_act;
     uint32_t aseq; uint8_t hap_l, hap_r, spk; uint64_t a_calls, a_muted; uint32_t n_hap, n_spk;
 } PbStatus;
+/* Serialises kernel memory access (SDK kernel_copyout/in are not thread-safe).
+ * Hold it around any kernel_* / shellui_pad_* call made outside the bridge. */
+void pb_kernel_lock(void);
+void pb_kernel_unlock(void);
 int pb_hooks_install(int want_input, int want_vibe, int want_audio, pid_t *out_pid, intptr_t *out_args,
                      char *why, size_t why_n);
 int pb_hooks_publish(pid_t pid, intptr_t args_addr, const PbPublishFrame *f, int enabled,

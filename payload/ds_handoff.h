@@ -26,7 +26,3 @@ void ds_handoff_sc2_used(void);
 
 void ds_handoff_set_enabled(int on);
 int  ds_handoff_json(char *out, size_t n);
-
-/* Serialises PT_ATTACH on SceShellUI between the virtual pad binding and the
- * hand-off worker (two tracers at once fail). Defined in ds_handoff.c. */
-extern pthread_mutex_t g_shellui_lock;
