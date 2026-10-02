@@ -19,6 +19,8 @@ enum { PAD_OFF, PAD_TOUCH, PAD_STICK, PAD_DPAD };
 
 /* Gyro aiming: when the gyro steers the right stick */
 enum { GYRO_OFF, GYRO_ALWAYS, GYRO_GRIP_ANY, GYRO_GRIP_BOTH, GYRO_RPAD, GYRO_RSTICK, GYRO_MODES };
+/* Right stick: normal, or flick stick */
+enum { RSTICK_NORMAL, RSTICK_FLICK };
 /* Gyro axis used for left/right aim */
 enum { GYRO_AXIS_YAW, GYRO_AXIS_ROLL };
 
@@ -54,6 +56,8 @@ typedef struct {
     uint8_t  gyro_adz;              /* anti-deadzone, % of stick travel, 0-40 */
     uint8_t  gyro_steady;           /* fine-aim filter, tenths of °/s, 0-30 (0 = raw) */
     uint8_t  gyro_curve;            /* game stick curve to undo, tenths, 10-30 (10 = linear) */
+    uint8_t  rstick;                /* RSTICK_* */
+    uint16_t flick_speed;           /* game's turn speed at full stick, °/s, 90-1440 */
     uint8_t  motion;                /* pass motion (tilt, turn, shake) to games */
 } sc2_profile_t;
 

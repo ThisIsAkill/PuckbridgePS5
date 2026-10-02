@@ -7,6 +7,7 @@
 #include "sc2_binding.h"
 #include "sc2_haptics.h"
 #include "sc2_gyro.h"
+#include "sc2_flick.h"
 #include <time.h>
 #include <string.h>
 #include <errno.h>
@@ -286,6 +287,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
         if (b[1] == 1) {
             *link = 0; sc2_live_connected = 0; sc2_live_inputs = 0;
             sc2_gyro_reset();
+            sc2_flick_reset();
             sc2_battery_reset();
             o->leftStick.x = o->leftStick.y = o->rightStick.x = o->rightStick.y = 128;
             o->connected = 1; o->quat.w = 1.0f;
@@ -420,8 +422,14 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
 
     o->leftStick.x  = axis(lx, dz, 0);
     o->leftStick.y  = axis(ly, dz, !P.invert_ly);
-    o->rightStick.x = axis(rx, dz, 0);
-    o->rightStick.y = axis(ry, dz, !P.invert_ry);
+    if (P.rstick == RSTICK_FLICK) {                  /* flick stick: turns only */
+        int f = sc2_flick_apply(&P, rx, ry, now);
+        o->rightStick.x = (uint8_t)(128 + f);
+        o->rightStick.y = 128;
+    } else {
+        o->rightStick.x = axis(rx, dz, 0);
+        o->rightStick.y = axis(ry, dz, !P.invert_ry);
+    }
 
     /* 6. gyro aiming: added on top of the right stick */
     int gdx, gdy;
