@@ -34,9 +34,11 @@ Turn and tilt the controller to aim. The gyro is added to the right stick, so it
 - **Left/right aim from:** *Turning* (yaw, like a flashlight) or *Tilting* (roll, like a steering wheel).
 - **Sensitivity** (left/right and up/down, 1–100): the stick is fully pushed at 2000 ÷ sensitivity °/s, so 20 = full stick at 100 °/s. Hover the value to see it.
 - **Anti-deadzone:** where the gyro's stick output starts, so slow, small movements get past the game's own stick deadzone. Raise it if fine aiming does nothing; lower it if the camera creeps.
+- **Fine-aim steadiness** (0–30): filters hand shake out of tiny movements. Lower it if aiming feels stiff; raise it if the aim jitters.
+- **Game stick curve** (10–30): makes up for games that bend their stick response. If the aim doesn't come back to where it started after looking away and back, raise it until it does.
 - **Invert** left/right or up/down.
 
-The card's live readout shows whether the gyro is running, aiming or paused, and which grips you're touching. Its dot should move right when you turn right and up when you tilt up; if it doesn't, use Invert.
+The card's live readout shows whether the gyro is running and aiming, and which grips you're touching. Its dot should move right when you turn right and up when you tilt up; if it doesn't, use Invert.
 
 Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro.
 
@@ -59,19 +61,19 @@ The Steam Controller only appears to the PS5 while it's switched on. When it sle
 - The card on the Settings tab shows what happened last, and the log records each step.
 
 ## Game bridge check (PoorDS4)
-Game vibration, and input that doesn't need a virtual controller, both depend on PoorDS4's method: redirecting the game's own controller calls. About 8 seconds after a game starts, the payload runs PoorDS4's checks in read-only mode, so nothing is written to the game. Results show in *Vibration & help → Game bridge check*, and the full report is saved to `/data/ghostpad/bridge-probe-<TITLE_ID>.txt`.
+Game vibration, and input that doesn't need a virtual controller, both depend on PoorDS4's method: redirecting the game's own controller calls. About 8 seconds after a game starts, the payload runs PoorDS4's checks in read-only mode, so nothing is written to the game. Results show in *Settings & help → Game bridge check*, and the full report is saved to `/data/ghostpad/bridge-probe-<TITLE_ID>.txt`.
 
 ## Notifications
 When a game starts you'll see which profile attached, or that it's using Default.
 
 ## Vibration
-**In games (experimental):** set in *Vibration & help → In games*. About 10 seconds after a game starts, Puckbridge redirects the game's own `libScePad` imports to small stubs, using PoorDS4's method:
+**In games (experimental):** set in *Settings & help → In games*. About 10 seconds after a game starts, Puckbridge redirects the game's own `libScePad` imports to small stubs, using PoorDS4's method:
 - **Input:** `scePadReadState`/`scePadRead` (and Ext) call Sony's original, then merge in the Steam Controller: buttons combined, and a stick or trigger taken from whichever controller is moving it. Both controllers drive the same player. In a hooked game the virtual controller is removed. It comes back on the home screen and in games that can't be hooked. The Steam button can't open the PS menu while in a hooked game.
 - **One controller at a time (default):** whichever controller you touched last controls the player, and the other is ignored. Also available: *Only the Steam Controller*, or *Both at once*.
 - **Vibration:** `scePadSetVibration` records the motor levels and calls Sony's original. While the Steam Controller is in control, the DualSense is sent zero vibration. The levels drive the Steam Controller: low-frequency on the left, high-frequency on the right.
 If the payload stops, merging switches off by itself within about a second. Turning a toggle off restores the game's imports. **DualSense haptics and speaker (PS5 games):** PS5 games drive the DualSense's actuators and speaker through audio ports, not the vibration call. Puckbridge hooks the game's audio output (`sceAudioOutOpen/Output(s)` and `sceAudioOut2PortCreate/SetAttributes`) as the game starts. It watches only the pad-haptics and pad-speaker ports. While the Steam Controller is in control, the DualSense gets silence on those ports, and the haptics level is turned into Steam Controller rumble. Main game audio is never touched. Restart the game after loading the payload so its ports are seen being created. Adaptive trigger effects aren't handled yet.
 
-The portal's *Vibration & help* tab tests the controller's haptics, with three send methods. Game rumble isn't passed through yet.
+*Settings & help → Vibration test* tests the controller's haptics, with three send methods.
 
 ## Known limits
 - One controller per Puck.
@@ -80,5 +82,5 @@ The portal's *Vibration & help* tab tests the controller's haptics, with three s
 - If game detection doesn't work on your firmware, lock the profile manually with the *Use* menu.
 
 ## Troubleshooting
-Open the portal, scroll to **Troubleshooting**, tap **Copy** (or Show), and include the log when opening an issue.
+Open the portal, go to *Settings & help → Troubleshooting log*, tap **Copy log** (or Show log), and include the log when opening an issue.
 The same log is also at `/data/ghostpad/gc_status.log` (FTP).
