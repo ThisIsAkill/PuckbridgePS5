@@ -1,0 +1,9 @@
+Button icons in this folder are from "Xelu's FREE Controller Prompts"
+by Nicolae (XELU) Berbece, updated by Paul Paun (2021):
+https://thoseawesomeguys.com/prompts/
+
+They are in the public domain under Creative Commons 0 (CC0 1.0):
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Resized to 48x48 for the portal. s_*.png = Steam Controller inputs,
+o_*.png = DualSense outputs.
