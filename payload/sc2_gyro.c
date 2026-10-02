@@ -58,6 +58,11 @@ void ghostpad_status_log(const char *fmt, ...);
  * low-noise data, so the default is light. */
 #define SMOOTH_N          4
 
+/* Stick overflow: a fast move asks for more than full stick. The excess is
+ * kept (in stick-seconds) and delivered right after, so the camera still
+ * turns the whole way; moving back the other way cancels it. */
+#define CARRY_MAX_S       0.35f
+
 volatile int sc2_gyro_moving = 0;
 
 static volatile int     g_wanted = 0;
@@ -74,6 +79,8 @@ static int16_t g_win_gmin[3], g_win_gmax[3], g_win_amin[3], g_win_amax[3];
 
 static float   g_hist[SMOOTH_N][2];
 static int     g_hist_i = 0;
+static float   g_carry[2];
+static int64_t g_last_ms = 0;
 
 static inline int16_t le16(const uint8_t *p) {
     return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
@@ -158,7 +165,11 @@ void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
     g_pitch = pitch; g_yaw = yaw; g_roll = roll;
 
     g_active = on;
-    if (!on) { memset(g_hist, 0, sizeof(g_hist)); return; }
+    float dt = g_last_ms ? (float)(now - g_last_ms) / 1000.0f : 0.004f;
+    g_last_ms = now;
+    if (dt < 0.0f) dt = 0.0f;
+    if (dt > 0.02f) dt = 0.02f;               /* report gap: don't treat as one long frame */
+    if (!on) { memset(g_hist, 0, sizeof(g_hist)); g_carry[0] = g_carry[1] = 0; return; }
 
     /* aim rates in °/s: +x = aim right, +y = aim up */
     float vx = -(P->gyro_axis == GYRO_AXIS_ROLL ? roll : yaw);
@@ -186,11 +197,28 @@ void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
 
     /* rate → stick: sensitivity S puts full stick at 2000/S °/s */
     float fx = vx * P->gyro_sens_x / 2000.0f, fy = vy * P->gyro_sens_y / 2000.0f;
+
+    /* overflow carry: demand = this frame + what earlier frames couldn't send */
+    if (dt > 0.0f) {
+        float wx = fx * dt + g_carry[0], wy = fy * dt + g_carry[1];
+        float wm = sqrtf(wx * wx + wy * wy);
+        if (wm <= dt) { fx = wx / dt; fy = wy / dt; g_carry[0] = g_carry[1] = 0; }
+        else {
+            fx = wx / wm; fy = wy / wm;                    /* full stick, same direction */
+            g_carry[0] = wx - fx * dt; g_carry[1] = wy - fy * dt;
+            float cm = sqrtf(g_carry[0] * g_carry[0] + g_carry[1] * g_carry[1]);
+            if (cm > CARRY_MAX_S) { g_carry[0] *= CARRY_MAX_S / cm; g_carry[1] *= CARRY_MAX_S / cm; }
+        }
+    }
     float m = sqrtf(fx * fx + fy * fy);
     if (m < 0.002f) return;
+    if (m > 1.0f) { fx /= m; fy /= m; m = 1.0f; }
+    /* game stick curve: most games bend the stick (half push < half speed),
+     * so bend the other way to keep turn speed proportional to the gyro */
+    float curved = P->gyro_curve > 10 ? powf(m, 10.0f / P->gyro_curve) : m;
     /* anti-deadzone: start just past the game's own stick deadzone */
     float adz = P->gyro_adz / 100.0f;
-    float out = adz + (1.0f - adz) * (m > 1.0f ? 1.0f : m);
+    float out = adz + (1.0f - adz) * curved;
     fx *= out / m; fy *= out / m;
     *dx = (int)lrintf(fx * 127.0f);
     *dy = (int)lrintf(-fy * 127.0f);                       /* DualSense: +y = down */
@@ -200,6 +228,7 @@ void sc2_gyro_reset(void) {
     g_imu_seen = 0; g_active = 0; g_grips = 0; sc2_gyro_moving = 0;
     g_win_n = 0;
     memset(g_hist, 0, sizeof(g_hist));
+    g_carry[0] = g_carry[1] = 0; g_last_ms = 0;
     g_yaw = g_pitch = g_roll = 0;
 }
 
