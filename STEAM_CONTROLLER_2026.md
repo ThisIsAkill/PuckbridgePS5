@@ -48,8 +48,9 @@ D-pad up/down chooses, left/right changes profile, A selects, B closes. *Remap a
 The Steam Controller only appears to the PS5 while it's switched on. When it sleeps or turns off, its virtual controller is removed. So the PS5 never waits for it (e.g. after rest mode), and a DualSense keeps working next to it.
 
 **DualSense hand-off (experimental, off by default):** turn on *Settings & help → DualSense hand-off* and the DualSense is disconnected from the console the first time you use the Steam Controller after it turns on, so the DualSense can't rumble, light up or play sound. Press the DualSense's PS button to switch back: the DualSense takes over and the Steam Controller steps aside (Puckbridge asks it to power off and stops using it either way) until you press its **Steam** button, which switches the DualSense off again.
-- Puckbridge learns which controller is the DualSense from the system log, either when the DualSense turns on or when a game opens it. If it hasn't seen it yet, it skips that time: start a game, or turn the DualSense off and on once.
-- If more than one physical controller is on (a second player), it does nothing, so it never turns off the wrong controller.
+- Puckbridge learns which controller is the DualSense from the system log, either when the DualSense turns on or when a game opens it. If it hasn't seen it yet, it waits: starting a game identifies it, and it's turned off then.
+- Turning the DualSense on while the Steam Controller is in control works like pressing its PS button after a hand-off: the DualSense takes over, so the two are never both on.
+- The DualSense gets a new id every time it connects, so Puckbridge turns off the one that connected last. With two DualSenses on (local co-op), turn the hand-off off.
 - The card on the Settings tab shows what happened last, and the log records each step.
 
 ## Game bridge check (PoorDS4)

@@ -662,8 +662,7 @@ async function paintDs(){
   const seen=d.pads?"":" The DualSense hasn't been identified yet: start a game, or turn the DualSense off and on once.";
   $("#dsStatus").textContent=!d.enabled?"Off.":({
     idle:"Ready. The DualSense turns off the first time you use the Steam Controller after it turns on."+seen,
-    no_id:"Skipped this time: the DualSense hasn't been identified yet. Start a game, or turn the DualSense off and on once.",
-    several:"Skipped this time: more than one controller is on, so Puckbridge won't guess which one to turn off.",
+    no_id:"Waiting: the DualSense hasn't been identified yet. Starting a game identifies it, and it turns off as soon as it is.",
     working:"Turning the DualSense off…",
     off:"DualSense is off. Press its PS button to bring it back.",
     back:"DualSense in control. Press the Steam Controller's Steam button to switch back.",
