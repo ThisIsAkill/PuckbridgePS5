@@ -11,8 +11,9 @@
  *
  * The DualSense's MBus device id is learnt from the system log: its
  * DEVICE_ADDED event (a pad with a battery, unlike our virtual one) or a
- * game's "Open Pad [id, ...]" line. Nothing is disconnected unless exactly
- * one physical pad is known, so a second player's controller is never hit. */
+ * game's "Open Pad [id, ...]" line. A DualSense gets a new id each time it
+ * connects and the old one isn't logged as gone, so the id seen last is the
+ * one turned off. */
 
 void ds_handoff_start(void);                  /* load setting */
 void ds_handoff_klog_line(const char *line);  /* every system log line */
