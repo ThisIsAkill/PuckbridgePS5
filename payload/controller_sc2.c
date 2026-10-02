@@ -27,6 +27,7 @@ void ghostpad_status_log(const char *fmt, ...);   /* gc_main.c: klog + /data/gho
 
 #define RID_INPUT     0x42
 #define RID_INPUT2    0x45
+#define RID_BATTERY   0x43
 #define RID_WIRELESS  0x79
 
 /* ── endpoint discovery ───────────────────────────────────────────────── */
@@ -252,6 +253,33 @@ static uint32_t pad_dpad(int16_t x, int16_t y) {
     return m;
 }
 
+/* ── battery ──────────────────────────────────────────────────────────── */
+
+volatile int sc2_battery_level = -1;      /* %, -1 = not reported yet */
+volatile int sc2_battery_state = 0;       /* SC2_BATT_* */
+
+/* Report 0x43 (Linux hid-steam, Ibex): [1] charge state, [2] level %,
+ * then voltages, currents and temperature. Warns once below 15% and again
+ * below 5% while discharging; charging or getting back above 20% re-arms. */
+static void battery_report(const uint8_t *b, uint32_t len) {
+    static int warned = 0, last_state = -1;
+    if (len < 3) return;
+    int st = b[1], lvl = b[2] > 100 ? 100 : b[2];
+    int state = st == 2 ? SC2_BATT_CHARGING : st == 4 ? SC2_BATT_FULL : SC2_BATT_DISCHARGING;
+    if (sc2_battery_level < 0 || state != last_state)
+        LOG("sc2: battery %d%% (%s)\n", lvl,
+            state == SC2_BATT_CHARGING ? "charging" : state == SC2_BATT_FULL ? "charged" : "on battery");
+    last_state = state;
+    sc2_battery_level = lvl; sc2_battery_state = state;
+    if (state != SC2_BATT_DISCHARGING || lvl > 20) { warned = 0; return; }
+    const char *m = NULL;
+    if (lvl <= 5 && warned < 2)       { warned = 2; m = "Puckbridge: Steam Controller battery at 5%. Charge it soon."; }
+    else if (lvl <= 15 && warned < 1) { warned = 1; m = "Puckbridge: Steam Controller battery low (15%)."; }
+    if (m && sc2_notify_fn) sc2_notify_fn(m);
+}
+
+void sc2_battery_reset(void) { sc2_battery_level = -1; sc2_battery_state = 0; }
+
 #define BIT(byte, mask) ((b[byte] & (mask)) != 0)
 
 int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) {
@@ -260,6 +288,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
             *link = 0; sc2_live_connected = 0; sc2_live_inputs = 0;
             sc2_gyro_reset();
             sc2_flick_reset();
+            sc2_battery_reset();
             o->leftStick.x = o->leftStick.y = o->rightStick.x = o->rightStick.y = 128;
             o->connected = 1; o->quat.w = 1.0f;
             return 1;
@@ -267,6 +296,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
         if (b[1] == 2) *link = 1;
         return 0;
     }
+    if (len >= 1 && b[0] == RID_BATTERY) { battery_report(b, len); return 0; }
     if (len < 30 || (b[0] != RID_INPUT && b[0] != RID_INPUT2)) return 0;
     *link = 1;
 
@@ -349,6 +379,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     uint32_t act = btn & PB_ACT_MASK;
     if ((act & PB_ACT_MENU) && !(prev_act & PB_ACT_MENU)) sc2_menu_toggle();
     prev_act = act;
+    sc2_gyro_buttons(act);
     btn &= ~PB_ACT_MASK;
 
     /* 3. analog triggers follow a plain LT/RT → L2/R2 binding; any other
@@ -419,5 +450,6 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     o->buttons   = btn;
     o->connected = 1;
     o->quat.w    = 1.0f;
+    sc2_gyro_motion(&P, b, len, now, o);         /* 7. motion for games */
     return 1;
 }

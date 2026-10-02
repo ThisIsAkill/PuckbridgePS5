@@ -25,8 +25,12 @@ enum { RSTICK_NORMAL, RSTICK_FLICK };
 enum { GYRO_AXIS_YAW, GYRO_AXIS_ROLL };
 
 /* Output bits above the DualSense range: Puckbridge actions, never sent to the PS5 */
-#define PB_ACT_MENU   0x80000000u   /* open/close the Puckbridge menu */
-#define PB_ACT_MASK   0x80000000u
+#define PB_ACT_MENU        0x80000000u   /* open/close the Puckbridge menu */
+#define PB_ACT_GYRO_ON     0x40000000u   /* gyro aims while held */
+#define PB_ACT_GYRO_OFF    0x20000000u   /* gyro paused while held (ratchet) */
+#define PB_ACT_GYRO_TOGGLE 0x10000000u   /* press: gyro off / back on */
+#define PB_ACT_GYRO        (PB_ACT_GYRO_ON | PB_ACT_GYRO_OFF | PB_ACT_GYRO_TOGGLE)
+#define PB_ACT_MASK        (PB_ACT_MENU | PB_ACT_GYRO)
 
 /* Steam Input-style bindings. Each input can fire different outputs per
  * activator; a "shift" input switches every input to its shift binding. */
@@ -54,6 +58,7 @@ typedef struct {
     uint8_t  gyro_curve;            /* game stick curve to undo, tenths, 10-30 (10 = linear) */
     uint8_t  rstick;                /* RSTICK_* */
     uint16_t flick_speed;           /* game's turn speed at full stick, °/s, 90-1440 */
+    uint8_t  motion;                /* pass motion (tilt, turn, shake) to games */
 } sc2_profile_t;
 
 extern const char *const sc2_in_keys[SC2_IN_COUNT];
