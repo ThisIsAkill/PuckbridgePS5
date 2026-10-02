@@ -347,6 +347,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     uint32_t act = btn & PB_ACT_MASK;
     if ((act & PB_ACT_MENU) && !(prev_act & PB_ACT_MENU)) sc2_menu_toggle();
     prev_act = act;
+    sc2_gyro_buttons(act);
     btn &= ~PB_ACT_MASK;
 
     /* 3. analog triggers follow a plain LT/RT → L2/R2 binding; any other

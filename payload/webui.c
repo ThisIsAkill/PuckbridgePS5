@@ -143,9 +143,9 @@ static void handle(int fd) {
         sb_put(&sb, num);
         sc2_gyro_status_t gs; sc2_gyro_status(&gs);
         char gj[192];
-        snprintf(gj, sizeof(gj), ",\"gyro\":{\"wanted\":%d,\"imu\":%d,\"active\":%d,\"cal\":%d,\"grips\":%d,"
+        snprintf(gj, sizeof(gj), ",\"gyro\":{\"wanted\":%d,\"imu\":%d,\"active\":%d,\"cal\":%d,\"grips\":%d,\"button\":%d,"
                  "\"yaw\":%.1f,\"pitch\":%.1f,\"roll\":%.1f}}",
-                 gs.wanted, gs.imu, gs.active, gs.calibrated, gs.grips,
+                 gs.wanted, gs.imu, gs.active, gs.calibrated, gs.grips, gs.button,
                  (double)gs.yaw, (double)gs.pitch, (double)gs.roll);
         sb_put(&sb, gj);
         reply(fd, 200, "application/json", out, sb.n);
