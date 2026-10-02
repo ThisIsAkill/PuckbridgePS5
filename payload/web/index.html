@@ -177,7 +177,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
 .acthelp{color:var(--muted);font-size:.9rem;margin:10px 0 0;min-height:2.6em}
 .actopts{display:flex;gap:18px;flex-wrap:wrap;margin:0 0 14px}
 .actopts label{display:inline-flex;gap:8px;align-items:center}
-.pick .g-PB_MENU[aria-pressed=false]{color:#f5c26b}
+.pick .g-PB_MENU[aria-pressed=false],.pick [class^=g-PB_GYRO][aria-pressed=false]{color:#f5c26b}
 .tag{font-size:.75rem;color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
 .toast{position:fixed;left:50%;top:76px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 16px;z-index:9;opacity:0;pointer-events:none;transition:opacity .15s}
 .toast.show{opacity:1}
@@ -381,7 +381,7 @@ const GROUPS=[["Face buttons",["A","B","X","Y"]],["Shoulders and triggers",["LB"
  ["Sticks and d-pad",["L3","R3","DUP","DDOWN","DLEFT","DRIGHT"]],["System",["VIEW","MENU","STEAM","QAM"]],
  ["Back grips",["L4","L5","R4","R5"]],["Trackpad clicks",["LPAD_CLICK","RPAD_CLICK"]]];
 const BITS=["A","B","X","Y","LB","RB","LT","RT","L3","R3","DUP","DDOWN","DLEFT","DRIGHT","VIEW","MENU","STEAM","QAM","L4","L5","R4","R5","LPAD_CLICK","RPAD_CLICK"];
-const OUTS=[["CROSS","Cross"],["CIRCLE","Circle"],["SQUARE","Square"],["TRIANGLE","Triangle"],["L1","L1"],["R1","R1"],["L2","L2"],["R2","R2"],["L3","L3"],["R3","R3"],["UP","Up"],["DOWN","Down"],["LEFT","Left"],["RIGHT","Right"],["OPTIONS","Options"],["CREATE","Create"],["PS","PS"],["TOUCHPAD","Touchpad"],["PB_MENU","Puckbridge menu"]];
+const OUTS=[["CROSS","Cross"],["CIRCLE","Circle"],["SQUARE","Square"],["TRIANGLE","Triangle"],["L1","L1"],["R1","R1"],["L2","L2"],["R2","R2"],["L3","L3"],["R3","R3"],["UP","Up"],["DOWN","Down"],["LEFT","Left"],["RIGHT","Right"],["OPTIONS","Options"],["CREATE","Create"],["PS","PS"],["TOUCHPAD","Touchpad"],["PB_MENU","Puckbridge menu"],["PB_GYRO_ON","Gyro on (hold)"],["PB_GYRO_OFF","Gyro off (hold)"],["PB_GYRO_TOGGLE","Gyro on/off"]];
 const OUTNAME=Object.fromEntries(OUTS);
 /* button icons: inlined by gen_html.py from web/icons (CC0, see web/icons/LICENSE.txt) */
 const ICON=/*__ICONS__*/{};
@@ -671,7 +671,7 @@ function paintGyro(){
   else if(!g.wanted)txt=status.active===editing?"Off in this profile":`Off in ${status.active_name||"the active profile"}`;
   else if(!g.imu)txt="Starting gyro…";
   else{const gr=["no grip","left grip","right grip","both grips"][g.grips&3];
-    txt=(g.active?"Aiming":"Not aiming")+" · "+gr+(g.cal?"":" · put it down for a second to calibrate")}
+    txt=(g.active?"Aiming":"Not aiming")+" · "+(g.button===1?"gyro button held":g.button===2?"held off with the gyro button":g.button===3?"turned off with the gyro button":gr)+(g.cal?"":" · put it down for a second to calibrate")}
   t.textContent=txt;
   const on=!!(g&&g.imu&&g.active);m.classList.toggle("on",on);
   const ax=g?((cur.GYRO_AXIS||"YAW")==="ROLL"?-g.roll:-g.yaw)*(cur.GYRO_INVERT_X==="1"?-1:1):0;

@@ -15,6 +15,12 @@
 void sc2_gyro_apply(const sc2_profile_t *P, const uint8_t *b, uint32_t len,
                     int64_t now_ms, int *dx, int *dy);
 
+/* Gyro buttons (PB_ACT_GYRO_* bits of this report's bound outputs): call
+ * before sc2_gyro_apply. "On" aims while held whatever the profile's mode,
+ * "off" pauses aiming while held (to re-centre your hands), and "toggle"
+ * switches aiming off and back on. */
+void sc2_gyro_buttons(uint32_t act);
+
 /* USB thread: enable/disable the IMU as needed. iface = controller interface. */
 void sc2_gyro_service(int fd, int iface);
 
@@ -28,6 +34,7 @@ typedef struct {
     int   active;        /* gyro is steering the stick right now */
     int   calibrated;    /* drift offset measured */
     int   grips;         /* bit 0 left grip touched, bit 1 right */
+    int   button;        /* 1 gyro-on button held, 2 gyro-off held, 3 toggled off */
     float yaw, pitch, roll;   /* °/s, calibrated */
 } sc2_gyro_status_t;
 void sc2_gyro_status(sc2_gyro_status_t *s);

@@ -42,6 +42,11 @@ Turn and tilt the controller to aim. The gyro is added to the right stick, so it
 
 The card's live readout shows whether the gyro is running and aiming, and which grips you're touching. Its dot should move right when you turn right and up when you tilt up; if it doesn't, use Invert.
 
+**Gyro buttons:** three actions you can bind to any input or activator, like any PS button:
+- **Gyro on (hold):** the gyro aims while it's held, whatever *Gyro aims* is set to (also with *Off*, for gyro only on demand).
+- **Gyro off (hold):** the gyro stops aiming while it's held, so you can re-centre your hands without moving the camera (ratcheting). A back grip works well.
+- **Gyro on/off:** press to turn gyro aiming off, press again to turn it back on. It's back on after the controller reconnects.
+
 Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro.
 
 ## Pause and resume
