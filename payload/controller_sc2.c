@@ -164,6 +164,30 @@ int sc2_find_active_ep(int fd, struct usb_fs_endpoint *eps,
     return found;
 }
 
+/* ── power off ────────────────────────────────────────────────────────── */
+
+int sc2_power_off(int fd, int iface) {
+    int r = -1;
+    for (int tries = 0; tries < 3; tries++) {
+        uint8_t buf[64]; memset(buf, 0, sizeof(buf));
+        buf[0] = 0x01;                                   /* feature report id */
+        buf[1] = 0x9F; buf[2] = 0x04;                    /* ID_TURN_OFF_CONTROLLER, len 4 */
+        buf[3] = 'o'; buf[4] = 'f'; buf[5] = 'f'; buf[6] = '!';
+        struct usb_ctl_request req; memset(&req, 0, sizeof(req));
+        req.ucr_data = buf;
+        req.ucr_request.bmRequestType = 0x21;
+        req.ucr_request.bRequest      = 0x09;            /* SET_REPORT */
+        USETW(req.ucr_request.wValue,  (uint16_t)((3 << 8) | 0x01));
+        USETW(req.ucr_request.wIndex,  iface);
+        USETW(req.ucr_request.wLength, sizeof(buf));
+        r = ioctl(fd, USB_DO_REQUEST, &req) == 0 ? 0 : -errno;
+        if (r != -EPIPE) break;                          /* wireless sometimes stalls once */
+        usleep(20000);
+    }
+    LOG("sc2: power-off request (iface %d) -> %d\n", iface, r);
+    return r;
+}
+
 /* ── parsing ──────────────────────────────────────────────────────────── */
 
 static inline int16_t le16(const uint8_t *p) {

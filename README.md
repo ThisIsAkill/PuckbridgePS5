@@ -26,7 +26,7 @@ Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-
 ## What doesn't (and why)
 
 - **Adaptive triggers** — the 2026 Steam Controller has plain mechanical triggers with no resistance motors, so the DualSense's adaptive-trigger effects cannot be reproduced. This is a hardware limit, not a software one.
-- **DualSense turning off by itself** — to switch to the DualSense you turn the Steam Controller off yourself. Powering the DualSense off automatically needs to address it from the payload, which isn't currently possible on this firmware. (Tip: *Settings → System → Power Saving → Set Time Until Controllers Turn Off* auto-sleeps an idle DualSense.)
+- **DualSense turning off by itself** is experimental. *Settings & help → DualSense hand-off* disconnects the DualSense when you start using the Steam Controller, and its PS button brings it back. It hasn't been verified on every firmware yet, so it's off by default. (Tip: *Settings → System → Power Saving → Set Time Until Controllers Turn Off* also auto-sleeps an idle DualSense.)
 - **Haptic texture** — rumble is conveyed as intensity, not the DualSense's full waveform, so effects feel coarser than on a DualSense.
 - **Two controllers controlling one game at once** isn't supported; it's one at a time (see hand-off above).
 

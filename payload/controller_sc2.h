@@ -54,3 +54,8 @@ int  sc2_find_active_ep(int fd, struct usb_fs_endpoint *eps,
  * *link is set to 0 on wireless disconnect, 1 on connect/input. */
 int  sc2_handle_packet(const uint8_t *buf, uint32_t len,
                        ScePadData *out_pad, int *link);
+
+/* Ask the controller to power itself off (ID_TURN_OFF_CONTROLLER, 0x9F "off!",
+ * through feature report 1 on its interface). Returns 0 if the request was
+ * accepted; whether the controller obeys shows up as a wireless disconnect. */
+int  sc2_power_off(int fd, int iface);
