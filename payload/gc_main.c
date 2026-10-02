@@ -113,6 +113,8 @@ typedef struct {
     char             dev_path[32];  /* ugen path claimed by this slot */
     uint16_t         vid, pid;
     volatile uint32_t inject_count;
+    volatile int     bind_ok;       /* virtual pad bound to the user (force_bind ret 0) */
+    volatile int32_t last_vdi_ret;  /* result of the last scePadVirtualDeviceInsertData */
 } ctrl_slot_t;
 
 static ctrl_slot_t     g_slots[MAX_SLOTS];
@@ -152,6 +154,16 @@ static uint64_t klog_dequeue_ms(int ms) {
     return 0;
 }
 
+/* Drop leftover ids so a new virtual pad never picks up an older one's. */
+static void klog_drain(void) {
+    pthread_mutex_lock(&g_klog_lock);
+    while (g_klog_qr != g_klog_qw) {
+        gp_log("klog: dropping stale VDA device 0x%llx\n", (unsigned long long)g_klog_q[g_klog_qr]);
+        g_klog_qr = (g_klog_qr + 1) % KLOG_QSIZE;
+    }
+    pthread_mutex_unlock(&g_klog_lock);
+}
+
 /* ── Notification ─────────────────────────────────────────────────────── */
 typedef struct { char _unk[45]; char message[3075]; } NotifyRequest;
 static void notify(const char *fmt, ...) {
@@ -177,6 +189,9 @@ static uint64_t parse_hex_str(const char *s) {
 }
 
 static void parse_klog_line(const char *line) {
+    /* Our own log lines come back through /dev/klog too; one quoting a
+     * DEVICE_ADDED line would otherwise be counted as a second device. */
+    if (strstr(line, "[GC]") || strstr(line, "[Ghostpad]")) return;
     ds_handoff_klog_line(line);
     if (!strstr(line, "DEVICE_ADDED"))        return;
     if (!strstr(line, "subType:22"))          return;
@@ -226,6 +241,7 @@ static void inject_pad(int slot, const ScePadData *pad) {
     int32_t h = g_slots[slot].handle;
     if (h < 0 || !g_slots[slot].vdi_ready) return;
     int vr = scePadVirtualDeviceInsertData(h, pad);
+    g_slots[slot].last_vdi_ret = vr;
     uint32_t n = ++g_slots[slot].inject_count;
     if ((n % 600) == 0)
         gp_log("slot[%d] VDI #%u ret=0x%08x\n", slot, n, (uint32_t)vr);
@@ -434,6 +450,9 @@ static int32_t create_vda_for_slot(int slot) {
     memset(&vdp,0,sizeof(vdp)); vdp.size=sizeof(vdp); vdp.userId=1;
     for(int k=0;k<6;k++) vdp.pad[k]=SEN;
 
+    g_slots[slot].bind_ok = 0;
+    g_slots[slot].last_vdi_ret = -1;
+    klog_drain();                             /* the next id must be this pad's */
     int ret = scePadVirtualDeviceAddDevice(&vdp, VIRTUAL_DEVICE_TYPE_DUALSENSE);
     gp_log("slot[%d] VDA ret=0x%08x\n", slot, (uint32_t)ret);
 
@@ -448,6 +467,7 @@ static int32_t create_vda_for_slot(int slot) {
         pb_kernel_lock();                     /* game hooks read kernel memory too */
         int br = shellui_pad_force_bind(dev_id, g_inject_uid);
         pb_kernel_unlock();
+        g_slots[slot].bind_ok = (br == 0);
         gp_log("slot[%d] force_bind(0x%llx, 0x%08x) ret=%d\n",
                slot, (unsigned long long)dev_id, (uint32_t)g_inject_uid, br);
     } else if (handle >= 0) {
@@ -840,7 +860,13 @@ main_loop: ;
              * pushed fully up-left. On disconnect nothing is fed and the
              * bridge is disabled (conn = 0), so native input resumes. */
             if (!was && sc2_link) ds_handoff_sc2_session(1);       /* woke up */
-            if (injected && sc2_link && sc2_pad_in_use(&pad)) ds_handoff_sc2_used();
+            /* Only hand off once the Steam Controller really works on its own:
+             * its virtual pad is bound to the user and input is going in. In a
+             * game with merged input it plays through the DualSense, so never. */
+            if (injected && sc2_link && sc2_pad_in_use(&pad) &&
+                g_slots[slot].vdi_ready && g_slots[slot].bind_ok &&
+                g_slots[slot].last_vdi_ret == 0 && !game_hooks_input_active())
+                ds_handoff_sc2_used();
             if (injected) game_hooks_feed(&pad, sc2_link);
             else if (!sc2_link) game_hooks_feed(NULL, 0);
             sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
