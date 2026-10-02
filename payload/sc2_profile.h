@@ -17,6 +17,11 @@ enum {
 /* Trackpad behaviour */
 enum { PAD_OFF, PAD_TOUCH, PAD_STICK, PAD_DPAD };
 
+/* Gyro aiming: when the gyro steers the right stick */
+enum { GYRO_OFF, GYRO_ALWAYS, GYRO_GRIP_ANY, GYRO_GRIP_BOTH, GYRO_RPAD, GYRO_RSTICK, GYRO_MODES };
+/* Gyro axis used for left/right aim */
+enum { GYRO_AXIS_YAW, GYRO_AXIS_ROLL };
+
 /* Output bits above the DualSense range: Puckbridge actions, never sent to the PS5 */
 #define PB_ACT_MENU   0x80000000u   /* open/close the Puckbridge menu */
 #define PB_ACT_MASK   0x80000000u
@@ -38,6 +43,13 @@ typedef struct {
     uint8_t  invert_ly, invert_ry;
     uint8_t  swap_sticks;
     uint8_t  deadzone;              /* % of full stick travel, 0-40 */
+    uint8_t  gyro_mode;             /* GYRO_* */
+    uint8_t  gyro_axis;             /* GYRO_AXIS_* */
+    uint8_t  gyro_sens_x, gyro_sens_y;   /* 1-100: full stick at 2000/n °/s */
+    uint8_t  gyro_invert_x, gyro_invert_y;
+    uint8_t  gyro_adz;              /* anti-deadzone, % of stick travel, 0-40 */
+    uint8_t  gyro_steady;           /* fine-aim filter, tenths of °/s, 0-30 (0 = raw) */
+    uint8_t  gyro_curve;            /* game stick curve to undo, tenths, 10-30 (10 = linear) */
 } sc2_profile_t;
 
 extern const char *const sc2_in_keys[SC2_IN_COUNT];

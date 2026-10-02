@@ -28,6 +28,18 @@ Every input can have several activators, set in the portal when you tap a contro
 
 Any activator can combine several PS5 buttons. Timings (long press, double press, turbo) are per profile.
 
+## Gyro aiming
+Turn and tilt the controller to aim. The gyro is added to the right stick, so it works in every game with no hooks, and the stick still works on top of it. Set it per profile in the *Gyro aiming* card on the Remap tab:
+- **Gyro aims:** off, always, while holding either grip, while holding both grips, while touching the right trackpad, or while touching the right stick. The grips are capacitive, so "either grip" means gyro is on whenever you're holding the controller and pauses when you let go.
+- **Left/right aim from:** *Turning* (yaw, like a flashlight) or *Tilting* (roll, like a steering wheel).
+- **Sensitivity** (left/right and up/down, 1–100): the stick is fully pushed at 2000 ÷ sensitivity °/s, so 20 = full stick at 100 °/s. Hover the value to see it.
+- **Anti-deadzone:** where the gyro's stick output starts, so slow, small movements get past the game's own stick deadzone. Raise it if fine aiming does nothing; lower it if the camera creeps.
+- **Invert** left/right or up/down.
+
+The card's live readout shows whether the gyro is running, aiming or paused, and which grips you're touching. Its dot should move right when you turn right and up when you tilt up; if it doesn't, use Invert.
+
+Drift is calibrated automatically: put the controller down (or hold it still) for about a second. The IMU is only switched on while the active profile uses gyro.
+
 ## On-console menu
 Bind **Puckbridge menu** to any input or activator (e.g. Quick access → Long press), then press it in-game.
 D-pad up/down chooses, left/right changes profile, A selects, B closes. *Remap a button* saves to the running game's profile.
@@ -57,7 +69,7 @@ If the payload stops, merging switches off by itself within about a second. Turn
 The portal's *Vibration & help* tab tests the controller's haptics, with three send methods. Game rumble isn't passed through yet.
 
 ## Known limits
-- One controller per Puck. No game rumble or gyro yet.
+- One controller per Puck.
 - The portal has no password. Anyone on your home network can open it.
 - If the Puck doesn't enumerate, try the other USB port.
 - If game detection doesn't work on your firmware, lock the profile manually with the *Use* menu.

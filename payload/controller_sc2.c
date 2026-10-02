@@ -5,6 +5,7 @@
 #include "sc2_profile.h"
 #include "sc2_menu.h"
 #include "sc2_binding.h"
+#include "sc2_gyro.h"
 #include <time.h>
 #include <string.h>
 #include <errno.h>
@@ -232,6 +233,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     if (len >= 2 && b[0] == RID_WIRELESS) {
         if (b[1] == 1) {
             *link = 0; sc2_live_connected = 0; sc2_live_inputs = 0;
+            sc2_gyro_reset();
             o->leftStick.x = o->leftStick.y = o->rightStick.x = o->rightStick.y = 128;
             o->connected = 1; o->quat.w = 1.0f;
             return 1;
@@ -291,6 +293,7 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
         o->leftStick.x = o->leftStick.y = o->rightStick.x = o->rightStick.y = 128;
         o->buttons = 0; o->connected = 1; o->quat.w = 1.0f;
         sc2_bind_reset();
+        sc2_gyro_moving = 0;
         return 1;
     }
 
@@ -346,6 +349,16 @@ int sc2_handle_packet(const uint8_t *b, uint32_t len, ScePadData *o, int *link) 
     o->leftStick.y  = axis(ly, dz, !P.invert_ly);
     o->rightStick.x = axis(rx, dz, 0);
     o->rightStick.y = axis(ry, dz, !P.invert_ry);
+
+    /* 6. gyro aiming: added on top of the right stick */
+    int gdx, gdy;
+    sc2_gyro_apply(&P, b, len, now, &gdx, &gdy);
+    if (gdx || gdy) {
+        int x = o->rightStick.x + gdx, y = o->rightStick.y + gdy;
+        o->rightStick.x = (uint8_t)(x < 0 ? 0 : x > 255 ? 255 : x);
+        o->rightStick.y = (uint8_t)(y < 0 ? 0 : y > 255 ? 255 : y);
+    }
+    sc2_gyro_moving = gdx || gdy;
 
     if (ol2) btn |= SCE_PAD_BUTTON_L2; else btn &= ~SCE_PAD_BUTTON_L2;
     if (or2) btn |= SCE_PAD_BUTTON_R2; else btn &= ~SCE_PAD_BUTTON_R2;

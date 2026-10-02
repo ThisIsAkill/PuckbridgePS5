@@ -11,6 +11,7 @@ Built on top of [Ghostcontrol](https://github.com/srbraboo/Ghostcontrol-PS5-USB-
 - **Steam Controller (2026)** over its wireless **Puck**, or the original Steam Controller (2015) over USB.
 - **Plays real games (PS4 and PS5).** The controller appears to the PS5 as a normal controller, so every game accepts it with no per-game setup.
 - **Rumble in games**, including PS5 titles like *Returnal* that drive the DualSense through audio rather than the classic vibration call — Puckbridge forwards that to the Steam Controller's grip motors.
+- **Gyro aiming.** Turn and tilt the controller to aim with the right stick, always or only while you're holding the grips. It works in every game, with per-profile sensitivity, axis, invert and anti-deadzone.
 - **Hand-off to the DualSense.** Turn the Steam Controller off (or let it sleep) and your DualSense takes over the game normally. Wake the Steam Controller with its **Steam** button and it takes back over. While the Steam Controller is in control, the DualSense's rumble and speaker are kept quiet; when it hands off, they come straight back.
 - **Remap portal** at `http://<PS5_IP>:8090`:
   - every input remappable, including the back grips, trackpad clicks, and the Steam button

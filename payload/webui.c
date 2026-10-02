@@ -5,6 +5,7 @@
 #include "game_list.h"
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
+#include "sc2_gyro.h"
 #include "ds_handoff.h"
 #include "bridge_probe.h"
 #include "game_hooks.h"
@@ -136,9 +137,16 @@ static void handle(int fd) {
         snprintf(num, sizeof(num), ",\"inputs\":%u,\"connected\":%d,\"menu\":%d,\"haptics\":%d",
                  (unsigned)sc2_live_inputs, sc2_live_connected, sc2_menu_open, sc2_haptic_available);
         sb_put(&sb, num);
-        snprintf(num, sizeof(num), ",\"hap\":{\"q\":%u,\"sent\":%u,\"fail\":%u,\"err\":%d,\"via\":%d,\"out\":%d}}",
+        snprintf(num, sizeof(num), ",\"hap\":{\"q\":%u,\"sent\":%u,\"fail\":%u,\"err\":%d,\"via\":%d,\"out\":%d}",
                  sc2_hap_queued, sc2_hap_sent, sc2_hap_failed, sc2_hap_last_err, sc2_hap_last_via, sc2_hap_out_ep);
         sb_put(&sb, num);
+        sc2_gyro_status_t gs; sc2_gyro_status(&gs);
+        char gj[192];
+        snprintf(gj, sizeof(gj), ",\"gyro\":{\"wanted\":%d,\"imu\":%d,\"active\":%d,\"cal\":%d,\"grips\":%d,"
+                 "\"yaw\":%.1f,\"pitch\":%.1f,\"roll\":%.1f}}",
+                 gs.wanted, gs.imu, gs.active, gs.calibrated, gs.grips,
+                 (double)gs.yaw, (double)gs.pitch, (double)gs.roll);
+        sb_put(&sb, gj);
         reply(fd, 200, "application/json", out, sb.n);
         return;
     }
@@ -190,7 +198,7 @@ static void handle(int fd) {
             REPLY_TXT(fd, 200, "saved");
         } else {
             if (sc2_store_load(id, &p) != 0) { REPLY_TXT(fd, 404, "no such profile"); return; }
-            char out[4096]; int n = sc2_profile_format(&p, out, sizeof(out));
+            static char out[8192]; int n = sc2_profile_format(&p, out, sizeof(out));
             reply(fd, 200, "text/plain", out, (size_t)n);
         }
         return;
