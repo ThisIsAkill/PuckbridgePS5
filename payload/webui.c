@@ -5,6 +5,7 @@
 #include "game_list.h"
 #include "sc2_haptics.h"
 #include "sc2_menu.h"
+#include "controller_sc2.h"
 #include "sc2_gyro.h"
 #include "ds_handoff.h"
 #include "bridge_probe.h"
@@ -134,8 +135,8 @@ static void handle(int fd) {
         sb_put(&sb, ",\"active\":"); json_str(&sb, a);
         sb_put(&sb, ",\"active_name\":"); json_str(&sb, pn);
         sb_put(&sb, ",\"override\":"); json_str(&sb, ov);
-        snprintf(num, sizeof(num), ",\"inputs\":%u,\"connected\":%d,\"menu\":%d,\"haptics\":%d",
-                 (unsigned)sc2_live_inputs, sc2_live_connected, sc2_menu_open, sc2_haptic_available);
+        snprintf(num, sizeof(num), ",\"inputs\":%u,\"connected\":%d,\"menu\":%d,\"haptics\":%d,\"paused\":%d",
+                 (unsigned)sc2_live_inputs, sc2_live_connected, sc2_menu_open, sc2_haptic_available, sc2_paused);
         sb_put(&sb, num);
         snprintf(num, sizeof(num), ",\"hap\":{\"q\":%u,\"sent\":%u,\"fail\":%u,\"err\":%d,\"via\":%d,\"out\":%d}",
                  sc2_hap_queued, sc2_hap_sent, sc2_hap_failed, sc2_hap_last_err, sc2_hap_last_via, sc2_hap_out_ep);
@@ -241,6 +242,13 @@ static void handle(int fd) {
         }
         char out[512]; int n = game_hooks_json(out, sizeof(out));
         reply(fd, 200, "application/json", out, n > 0 ? (size_t)n : 0);
+        return;
+    }
+    if (is_post && !strncmp(path, "/api/pause", 10)) {
+        const char *o = strstr(path, "on=");
+        if (!o) { REPLY_TXT(fd, 400, "missing on="); return; }
+        sc2_set_paused(o[3] == '1');
+        REPLY_TXT(fd, 200, sc2_paused ? "paused" : "running");
         return;
     }
     if (!strncmp(path, "/api/dualsense", 14)) {

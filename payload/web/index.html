@@ -40,6 +40,7 @@ header{position:sticky;top:0;z-index:4;background:rgba(15,20,32,.82);backdrop-fi
 .brand small{color:var(--muted);font-weight:400;margin-left:8px}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:.9rem;color:var(--muted);white-space:nowrap}
 .dot{width:9px;height:9px;border-radius:50%;background:#5a6378;flex:none}
+.dot.paused{background:#f5c26b}
 .dot.on{background:var(--triangle);box-shadow:0 0 0 4px rgba(95,211,166,.18)}
 nav.tabs{display:flex;gap:4px}
 nav.tabs button{background:transparent;border-color:transparent;color:var(--muted)}
@@ -76,6 +77,8 @@ nav.tabs button[aria-selected=true]{background:var(--panel2);border-color:var(--
 .ctl.live .s{fill:var(--accent)}
 .ctl.live .t{fill:#0f1a33}
 .ctl.sel .s{stroke:var(--text);stroke-width:3}
+.ctl.reserved{cursor:help}
+.row.reserved{cursor:default}
 .art{fill:#b9c3da;pointer-events:none}
 .artline{fill:none;stroke:#b9c3da;stroke-width:3;pointer-events:none}
 .ctl.ov .s{fill:transparent;stroke:transparent;stroke-width:3}
@@ -287,6 +290,11 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <div class="btns"><button class="primary" id="ghRec">Use recommended settings</button></div>
       </div>
       <div class="card" style="grid-column:1/-1">
+        <h2>Pause Puckbridge</h2>
+        <p>Hold the Steam Controller's <kbd>…</kbd> button for 5 seconds, anywhere (in a game or on the home screen), to pause Puckbridge: the Steam Controller stops sending input and your DualSense works exactly as normal. Hold it for 5 seconds again to resume. The controller gives a long buzz when pausing and a short one when resuming.</p>
+        <div class="btns"><button id="pauseBtn">Pause now</button></div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
         <h2>DualSense hand-off</h2>
         <label class="opt" style="padding:8px 0;border:0"><span><b>Turn the DualSense off while the Steam Controller is in control</b><br><small style="color:var(--muted)">When you start using the Steam Controller, the DualSense is disconnected, so it can't rumble, light up or play sound. Press its PS button to switch back: the DualSense takes over and the Steam Controller steps aside until you press its Steam button. Experimental.</small></span><input type="checkbox" id="dsOff"></label>
         <p id="dsStatus" style="min-height:1.4em;margin:4px 0 0">&nbsp;</p>
@@ -315,7 +323,7 @@ pre.log{white-space:pre-wrap;word-break:break-word;background:var(--panel2);bord
         <h2>Menu on the console</h2>
         <p>Switch profiles or remap a button without leaving the game. Messages appear as PS5 notifications.</p>
         <ol>
-          <li>Bind <b>Puckbridge menu</b> to any button or activator (for example Quick access → Long press). Press it to open or close.</li>
+          <li>Bind <b>Puckbridge menu</b> to any button or activator (for example View → Long press). Press it to open or close.</li>
           <li><b>D-pad up/down</b> chooses, <b>left/right</b> changes profile, <b>A</b> selects, <b>B</b> closes.</li>
           <li>To remap: pick <b>Remap a button</b>, press the button to change, then press the button it should act as. It saves to the current game's profile.</li>
         </ol>
@@ -368,7 +376,8 @@ const OUTNAME=Object.fromEntries(OUTS);
 /* button icons: inlined by gen_html.py from web/icons (CC0, see web/icons/LICENSE.txt) */
 const ICON=/*__ICONS__*/{};
 function ic(key,cls){const u=ICON[key];return u?`<img class="${cls||"ic"}" src="${u}" alt="" aria-hidden="true">`:""}
-const DEFAULTS={A:"CROSS",B:"CIRCLE",X:"SQUARE",Y:"TRIANGLE",LB:"L1",RB:"R1",LT:"L2",RT:"R2",L3:"L3",R3:"R3",DUP:"UP",DDOWN:"DOWN",DLEFT:"LEFT",DRIGHT:"RIGHT",VIEW:"CREATE",MENU:"OPTIONS",STEAM:"PS",QAM:"TOUCHPAD",L4:"L3",L5:"L1+R1",R4:"R3",R5:"L3+R3",LPAD_CLICK:"TOUCHPAD",RPAD_CLICK:"TOUCHPAD"};
+const DEFAULTS={A:"CROSS",B:"CIRCLE",X:"SQUARE",Y:"TRIANGLE",LB:"L1",RB:"R1",LT:"L2",RT:"R2",L3:"L3",R3:"R3",DUP:"UP",DDOWN:"DOWN",DLEFT:"LEFT",DRIGHT:"RIGHT",VIEW:"CREATE",MENU:"OPTIONS",STEAM:"PS",QAM:"NONE",L4:"L3",L5:"L1+R1",R4:"R3",R5:"L3+R3",LPAD_CLICK:"TOUCHPAD",RPAD_CLICK:"TOUCHPAD"};
+const RESERVED="QAM", RESERVED_TXT="Reserved: hold 5 s to pause or resume Puckbridge";
 const PADS=[["OFF","Off"],["TOUCH","Touchpad"],["STICK","Stick"],["DPAD","D-pad"]];
 const GAXES=[["YAW","Turning"],["ROLL","Tilting"]];
 const GDEF={GYRO:"OFF",GYRO_AXIS:"YAW",GYRO_SENS_X:20,GYRO_SENS_Y:16,GYRO_ANTI_DEADZONE:10,GYRO_STEADINESS:5,GYRO_CURVE:10};
@@ -417,22 +426,24 @@ function buildPad(){
     const title=document.createElementNS(NS,"title");g.appendChild(title);
     g.onclick=()=>openSheet(k);
     g.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(k)}};
+    if(k===RESERVED)g.classList.add("reserved");
     g.onmouseenter=g.onfocus=()=>showCaption(k);
     svg.appendChild(g);
   });
 }
-function showCaption(k){const x=extras(k);$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(comboText(cur[k]))}${x.length?` <span style="color:var(--muted)">· ${esc(x.join(" · "))}</span>`:""}`}
+function showCaption(k){if(k===RESERVED){$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(RESERVED_TXT)}`;return}const x=extras(k);$("#caption").innerHTML=`<b>${esc(LABEL[k])}</b> → ${esc(comboText(cur[k]))}${x.length?` <span style="color:var(--muted)">· ${esc(x.join(" · "))}</span>`:""}`}
 function paintPad(){
-  $$(".ctl").forEach(g=>{const k=g.dataset.k;g.classList.toggle("changed",norm(cur[k])!==norm(DEFAULTS[k])||extras(k).length>0);
+  $$(".ctl").forEach(g=>{const k=g.dataset.k;if(k===RESERVED){g.querySelector("title").textContent=`${LABEL[k]}: ${RESERVED_TXT}`;g.setAttribute("aria-label",`${LABEL[k]}, ${RESERVED_TXT}`);return}g.classList.toggle("changed",norm(cur[k])!==norm(DEFAULTS[k])||extras(k).length>0);
     g.querySelector("title").textContent=`${LABEL[k]} → ${comboText(cur[k])}`;g.setAttribute("aria-label",`${LABEL[k]}, does ${comboText(cur[k])}`)});
 }
 
 /* ── list ── */
 function renderList(){
   $("#list").innerHTML=GROUPS.map(([t,keys])=>`<div class="group"><h3>${t}</h3>${keys.map(k=>{const c=combo(cur[k]);
+    if(k===RESERVED)return `<div class="row reserved" data-k="${k}"><span class="phys">${ic("s_"+k)}${esc(LABEL[k])}</span><span class="chips"><span class="tag">${esc(RESERVED_TXT)}</span></span></div>`;
     return `<div class="row" tabindex="0" role="button" data-k="${k}"><span class="phys">${ic("s_"+k)}${esc(LABEL[k])}</span><span class="chips">${
       c.length?c.map(o=>`<span class="chip c-${o}">${ic("o_"+o,"ic sm")}${esc(OUTNAME[o]||o)}</span>`).join(""):'<span class="chip none">Nothing</span>'}${extras(k).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</span></div>`}).join("")}</div>`).join("");
-  $$(".row").forEach(r=>{r.onclick=()=>openSheet(r.dataset.k);r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(r.dataset.k)}};r.onmouseenter=()=>showCaption(r.dataset.k)});
+  $$(".row").forEach(r=>{if(r.dataset.k===RESERVED){r.onmouseenter=()=>showCaption(RESERVED);return}r.onclick=()=>openSheet(r.dataset.k);r.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openSheet(r.dataset.k)}};r.onmouseenter=()=>showCaption(r.dataset.k)});
 }
 function renderOpts(){
   $$(".seg[data-k]").forEach(seg=>{const k=seg.dataset.k;seg.innerHTML="";
@@ -440,7 +451,7 @@ function renderOpts(){
   $$("input[type=checkbox][data-k]").forEach(i=>{i.checked=cur[i.dataset.k]==="1";i.onchange=()=>{cur[i.dataset.k]=i.checked?"1":"0";dirty()}});
   const dz=$("input[data-k=DEADZONE]");dz.value=cur.DEADZONE||9;$("#dzv").textContent=dz.value+"%";
   dz.oninput=()=>{cur.DEADZONE=dz.value;$("#dzv").textContent=dz.value+"%";dirty()};
-  const ss=$("#shiftSel");ss.innerHTML='<option value="NONE">None</option>'+BITS.map(k=>`<option value="${k}">${esc(LABEL[k])}</option>`).join("");
+  const ss=$("#shiftSel");ss.innerHTML='<option value="NONE">None</option>'+BITS.filter(k=>k!==RESERVED).map(k=>`<option value="${k}">${esc(LABEL[k])}</option>`).join("");
   ss.value=cur.SHIFT||"NONE";ss.onchange=()=>{cur.SHIFT=ss.value;render()};
   $$("input[data-r]").forEach(r=>{const k=r.dataset.r,def={LONG_MS:400,DOUBLE_MS:250,TURBO_MS:60}[k];
     r.value=cur[k]||def;$(`b[data-v=${k}]`).textContent=r.value+" ms";
@@ -473,6 +484,7 @@ const ACTS=[["","Press","Sends these while held. Pick several for a combo."],
 let draft={},act="";
 function actsFor(k){return ACTS.filter(a=>a[0]!==".full"||k==="LT"||k==="RT").filter(a=>a[0]!==".shift"||cur.SHIFT&&cur.SHIFT!=="NONE"&&cur.SHIFT!==k)}
 function openSheet(k){
+  if(k===RESERVED){showCaption(k);toast("… is reserved: hold it for 5 seconds to pause or resume Puckbridge");return}
   sheetKey=k;$("#sheetT").textContent=LABEL[k];
   draft={};ACTS.forEach(([a])=>draft[a]=new Set(combo(cur[k+a])));
   draft.turbo=cur[k+".turbo"]==="1";draft.toggle=cur[k+".toggle"]==="1";
@@ -598,13 +610,17 @@ function paintLive(live){
 async function poll(){
   try{
     status=JSON.parse(await api("/api/status"));
-    $("#dot").classList.toggle("on",!!status.connected);
-    $("#conn").textContent=status.connected?"Controller connected":"Controller not connected";
+    $("#dot").classList.toggle("on",!!status.connected&&!status.paused);
+    $("#dot").classList.toggle("paused",!!status.paused);
+    $("#conn").textContent=status.paused?"Paused · hold … 5 s to resume":status.connected?"Controller connected":"Controller not connected";
+    $("#pauseBtn").textContent=status.paused?"Resume now":"Pause now";$("#pauseBtn").className=status.paused?"primary":"";
     renderNow();paintLive(status.inputs>>>0);paintHap();paintGyro();
     if($("#mode").value!==(status.override||""))$("#mode").value=status.override||"";
   }catch(e){$("#dot").classList.remove("on");$("#conn").textContent="PS5 unreachable"}
   setTimeout(poll,150);
 }
+
+$("#pauseBtn").onclick=async()=>{try{await api("/api/pause?on="+(status.paused?0:1),{method:"POST"});toast(status.paused?"Resumed":"Paused")}catch(e){toast(e.message)}};
 
 /* ── gyro live readout ── */
 function paintGyro(){
@@ -614,7 +630,7 @@ function paintGyro(){
   else if(!g.wanted)txt=status.active===editing?"Off in this profile":`Off in ${status.active_name||"the active profile"}`;
   else if(!g.imu)txt="Starting gyro…";
   else{const gr=["no grip","left grip","right grip","both grips"][g.grips&3];
-    txt=(g.active?"Aiming":"Paused")+" · "+gr+(g.cal?"":" · put it down for a second to calibrate")}
+    txt=(g.active?"Aiming":"Not aiming")+" · "+gr+(g.cal?"":" · put it down for a second to calibrate")}
   t.textContent=txt;
   const on=!!(g&&g.imu&&g.active);m.classList.toggle("on",on);
   const ax=g?((cur.GYRO_AXIS||"YAW")==="ROLL"?-g.roll:-g.yaw)*(cur.GYRO_INVERT_X==="1"?-1:1):0;

@@ -644,8 +644,8 @@ static void *usb_hid_thread(void *arg) {
         }
         memset(&uninit,0,sizeof(uninit)); ioctl(fd,USB_FS_UNINIT,&uninit);
         if (active < 0) { gp_log("slot[%d] SC2 puck removed\n",slot); close(fd); goto exit_slot; }
-        sc2_vda_attach(slot);
-        ds_handoff_sc2_session(1);
+        if (!sc2_paused) sc2_vda_attach(slot);
+        ds_handoff_sc2_session(!sc2_paused);
 
         /* Re-init with the single active endpoint at index 0 for the main loop */
         memset(eps,0,sizeof(eps)); memset(&init,0,sizeof(init));
@@ -813,7 +813,7 @@ main_loop: ;
      * parked (no virtual pad, hooks see it as off) until its Steam button is
      * pressed and released, or it's turned off and on. Stage: 0 wait for the
      * Steam button to be up, 1 wait for a press, 2 wait for its release. */
-    int sc2_parked = 0, sc2_park_stage = 0;
+    int sc2_parked = 0, sc2_park_stage = 0, sc2_pause_seen = sc2_paused;
     uint32_t steam_pkts = 0;
     uint8_t nintendo_seq = 1;
 
@@ -861,16 +861,24 @@ main_loop: ;
         } else if (pid == PID_SC2_PUCK || pid == PID_SC2_WIRED) {
             int was = sc2_link;
             injected = sc2_handle_packet(buf, len, &pad, &sc2_link);
-            if (!was && sc2_link) { sc2_parked = 0; ds_handoff_sc2_session(1); }   /* woke up */
+            if (sc2_paused != sc2_pause_seen) {             /* paused or resumed (hold … 5 s) */
+                sc2_pause_seen = sc2_paused;
+                if (sc2_paused) ds_handoff_sc2_session(0);
+                else if (sc2_link && !sc2_parked) ds_handoff_sc2_session(1);
+            }
+            if (!was && sc2_link) { sc2_parked = 0; ds_handoff_sc2_session(!sc2_paused); }   /* woke up */
 
             /* DualSense came back after a hand-off: it takes over. Ask the Steam
              * Controller to power off, and park it whether or not it does. */
-            if (ds_handoff_take_release() && !sc2_parked) {
+            if (ds_handoff_take_release() && !sc2_parked && !sc2_paused) {
                 sc2_parked = 1; sc2_park_stage = 0;
                 sc2_power_off(fd, sc2_iface);
                 notify("Puckbridge: DualSense in control. Press the Steam button to switch back.");
             }
-            if (sc2_parked) {
+            if (sc2_paused || sc2_parked) {
+                /* Paused (hold … 5 s) or the DualSense is in control: release
+                 * everything and remove the virtual pad; the hooks see it as
+                 * off. Reports are still read to catch the resume / Steam button. */
                 game_hooks_feed(NULL, 0);
                 sc2_haptic_service(fd, eps, out_opened, sc2_iface, sc2_n_out);
                 sc2_gyro_service(fd, sc2_iface);
@@ -879,11 +887,12 @@ main_loop: ;
                     rel.leftStick.x = rel.leftStick.y = rel.rightStick.x = rel.rightStick.y = 128;
                     rel.connected = 1; rel.quat.w = 1.0f;
                     inject_pad(slot, &rel);                     /* release everything first */
-                    sc2_vda_detach(slot, "DualSense in control");
+                    sc2_vda_detach(slot, sc2_paused ? "paused" : "DualSense in control");
                 }
                 if (was && !sc2_link) ds_handoff_sc2_session(0);   /* it did power off */
                 int steam = sc2_link && (sc2_live_inputs & (1u << IN_STEAM)) != 0;
-                if      (sc2_park_stage == 0 && !steam) sc2_park_stage = 1;
+                if (sc2_paused) ;                               /* only the … hold resumes */
+                else if (sc2_park_stage == 0 && !steam) sc2_park_stage = 1;
                 else if (sc2_park_stage == 1 &&  steam) sc2_park_stage = 2;
                 else if (sc2_park_stage == 2 && !steam) {
                     sc2_parked = 0;
